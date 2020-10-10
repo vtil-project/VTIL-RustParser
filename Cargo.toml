@@ -1,0 +1,19 @@
+[package]
+name = "VTIL"
+version = "0.1.0"
+authors = ["meme <meme@users.noreply.github.com>"]
+edition = "2018"
+
+[features]
+graph = ["petgraph"]
+
+[dependencies]
+scroll = "0.10"
+memmap = "0.7"
+getset = "0.1"
+ouroboros = "0.2"
+petgraph = { version = "0.5", optional = true }
+bitflags = "1.2"
+
+[dev-dependencies]
+ansi_term = "0.12"
