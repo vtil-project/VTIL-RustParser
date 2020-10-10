@@ -1,5 +1,5 @@
 use std::env;
-use VTIL_Parser::{Result, VTILReader};
+use vtil_parser::{Result, VTILReader};
 
 fn main() -> Result<()> {
     let mut argv = env::args();

@@ -1,6 +1,5 @@
-use ::VTIL_Parser::{BasicBlock, Instruction, Operand, RegisterFlags, Result, VTILReader};
-use ansi_term::Colour::{Blue, Yellow};
 use std::env;
+use vtil_parser::{BasicBlock, Instruction, Operand, RegisterFlags, Result, VTILReader};
 
 fn is_volatile(instr: &Instruction) -> bool {
     instr.name() == "sfence"

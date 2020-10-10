@@ -1,19 +1,20 @@
 [package]
-name = "VTIL-Parser"
+name = "vtil-parser"
 version = "0.1.0"
 authors = ["meme <meme@users.noreply.github.com>"]
 edition = "2018"
-
-[features]
-graph = ["petgraph"]
+description = "An in-place parser for VTIL files written in Rust."
+documentation = "https://docs.rs/vtil-parser"
+repository = "https://github.com/vtil-project/VTIL-RustParser"
+license = "BSD-3-Clause"
+keywords = ["parser", "vtil"]
 
 [dependencies]
 scroll = "0.10"
 memmap = "0.7"
 getset = "0.1"
 ouroboros = "0.2"
-petgraph = { version = "0.5", optional = true }
 bitflags = "1.2"
 
-[dev-dependencies]
-ansi_term = "0.12"
+[badges]
+travis-ci = { repository = "vtil-project/VTIL-RustParser", branch = "master" }
