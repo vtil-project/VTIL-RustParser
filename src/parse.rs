@@ -116,7 +116,7 @@ impl RegisterDesc {
     }
 
     pub fn architecture(&self) -> ArchitectureIdentifier {
-        match self.combined_id() & 0xff {
+        match self.combined_id() & 0xff00000000000000 {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
             2 => ArchitectureIdentifier::Virtual,
