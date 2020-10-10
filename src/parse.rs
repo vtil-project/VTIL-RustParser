@@ -148,40 +148,40 @@ impl fmt::Display for RegisterDesc {
         }
 
         if self.flags.contains(RegisterFlags::INTERNAL) {
-            write!(f, "{}sr{}{}", prefix, self.local_id(), suffix);
+            write!(f, "{}sr{}{}", prefix, self.local_id(), suffix)?;
             return Ok(());
         } else if self.flags.contains(RegisterFlags::UNDEFINED) {
-            write!(f, "{}UD{}", prefix, suffix);
+            write!(f, "{}UD{}", prefix, suffix)?;
             return Ok(());
         } else if self.flags.contains(RegisterFlags::FLAGS) {
-            write!(f, "{}$flags{}", prefix, suffix);
+            write!(f, "{}$flags{}", prefix, suffix)?;
             return Ok(());
         } else if self.flags.contains(RegisterFlags::STACK_POINTER) {
-            write!(f, "{}$sp{}", prefix, suffix);
+            write!(f, "{}$sp{}", prefix, suffix)?;
             return Ok(());
         } else if self.flags.contains(RegisterFlags::IMAGE_BASE) {
-            write!(f, "{}base{}", prefix, suffix);
+            write!(f, "{}base{}", prefix, suffix)?;
             return Ok(());
         } else if self.flags.contains(RegisterFlags::LOCAL) {
-            write!(f, "{}t{}{}", prefix, self.local_id(), suffix);
+            write!(f, "{}t{}{}", prefix, self.local_id(), suffix)?;
             return Ok(());
         }
 
         if self.flags().contains(RegisterFlags::PHYSICAL) {
             match self.architecture() {
                 ArchitectureIdentifier::Amd64 => {
-                    write!(f, "{}TODO_AMD64{}", prefix, suffix);
+                    write!(f, "{}TODO_AMD64{}", prefix, suffix)?;
                     return Ok(());
                 }
                 ArchitectureIdentifier::Arm64 => {
-                    write!(f, "{}TODO_ARM64{}", prefix, suffix);
+                    write!(f, "{}TODO_ARM64{}", prefix, suffix)?;
                     return Ok(());
                 }
                 _ => unreachable!(),
             }
         }
 
-        write!(f, "{}vr{}{}", prefix, self.local_id(), suffix);
+        write!(f, "{}vr{}{}", prefix, self.local_id(), suffix)?;
         Ok(())
     }
 }
