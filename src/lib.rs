@@ -18,7 +18,7 @@ pub use parse::*;
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 
-#[self_referencing]
+#[self_referencing(no_doc)]
 pub struct VTIL<T: 'static> {
     source: Box<T>,
     #[borrows(source)]
