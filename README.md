@@ -1,6 +1,6 @@
 # VTIL-Rust
 
-An in-place parse for VTIL files written in Rust. 
+An in-place parser for VTIL files written in Rust. 
 
 ## References
 
