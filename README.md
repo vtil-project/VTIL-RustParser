@@ -1,4 +1,4 @@
-# VTIL-Rust
+# VTIL-RustParser
 
 An in-place parser for VTIL files written in Rust. 
 

@@ -1,5 +1,5 @@
 [package]
-name = "VTIL"
+name = "VTIL-Parser"
 version = "0.1.0"
 authors = ["meme <meme@users.noreply.github.com>"]
 edition = "2018"

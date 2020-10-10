@@ -1,4 +1,4 @@
-use ::VTIL::{BasicBlock, Instruction, Operand, RegisterFlags, Result, VTILReader};
+use ::VTIL_Parser::{BasicBlock, Instruction, Operand, RegisterFlags, Result, VTILReader};
 use ansi_term::Colour::{Blue, Yellow};
 use std::env;
 
