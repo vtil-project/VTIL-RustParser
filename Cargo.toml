@@ -17,4 +17,4 @@ ouroboros = "0.2"
 bitflags = "1.2"
 
 [badges]
-travis-ci = { repository = "vtil-project/VTIL-RustParser", branch = "master" }
+travis-ci = { repository = "vtil-project/VTIL-RustParser", branch = "main" }
