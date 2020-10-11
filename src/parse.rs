@@ -8,9 +8,13 @@ const VTIL_MAGIC_1: u32 = 0x4c495456;
 const VTIL_MAGIC_2: u16 = 0xdead;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Architecture for IL inside of VTIL routines
 pub enum ArchitectureIdentifier {
+    /// AMD64 (otherwise known as x86_64) architecture
     Amd64,
+    /// AArch64 architecture
     Arm64,
+    /// Virtual architecture (contains no physical register access)
     Virtual,
 }
 
@@ -37,7 +41,9 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ArchitectureIdentifier {
 
 #[derive(Debug, CopyGetters)]
 #[get_copy = "pub"]
+/// Header containing metadata regarding the VTIL container
 pub struct Header {
+    /// The architecture used by the VTIL routine
     arch_id: ArchitectureIdentifier,
 }
 
@@ -85,38 +91,59 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Vip {
 }
 
 bitflags! {
+    /// Flags describing register properties
     pub struct RegisterFlags: u64 {
+        /// Default value if no flags set. Read/write pure virtual register that
+        /// is not a stack pointer or flags
         const VIRTUAL = 0;
+        /// Indicates that the register is a physical register
         const PHYSICAL = 1 << 0;
+        /// Indicates that the register is a local temporary register of the current basic block
         const LOCAL = 1 << 1;
+        /// Indicates that the register is used to hold CPU flags
         const FLAGS = 1 << 2;
+        /// Indicates that the register is used as the stack pointer
         const STACK_POINTER = 1 << 3;
+        /// Indicates that the register is an alias to the image base
         const IMAGE_BASE = 1 << 4;
+        /// Indicates that the register can change spontanously (e.g.: IA32_TIME_STAMP_COUNTER)
         const VOLATILE = 1 << 5;
+        /// Indicates that the register can change spontanously (e.g.: IA32_TIME_STAMP_COUNTER)
         const READONLY = 1 << 6;
+        /// Indicates that it is the special "undefined" register
         const UNDEFINED = 1 << 7;
+        /// Indicates that it is a internal-use register that should be treated
+        /// like any other virtual register
         const INTERNAL = 1 << 8;
+        /// Combined mask of all special registers
         const SPECIAL = Self::FLAGS.bits | Self::STACK_POINTER.bits | Self::IMAGE_BASE.bits | Self::UNDEFINED.bits;
     }
 }
 
 #[derive(Debug, CopyGetters)]
-#[get_copy = "pub"]
 /// Describes a VTIL register in an operand
 pub struct RegisterDesc {
+    #[get_copy = "pub"]
+    /// Flags describing the register
     flags: RegisterFlags,
     combined_id: u64,
+    #[get_copy = "pub"]
+    /// The bit count of this register (e.g.: 32)
     bit_count: i32,
+    #[get_copy = "pub"]
+    /// The bit offset of register access
     bit_offset: i32,
 }
 
 impl RegisterDesc {
+    /// Local identifier that is intentionally unique to this register
     pub fn local_id(&self) -> u64 {
-        self.combined_id() & 0x00ffffffffffffff
+        self.combined_id & 0x00ffffffffffffff
     }
 
-    pub fn architecture(&self) -> ArchitectureIdentifier {
-        match self.combined_id() & 0xff00000000000000 {
+    /// The underlying architecture of this register
+    pub fn arch_id(&self) -> ArchitectureIdentifier {
+        match self.combined_id & 0xff00000000000000 {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
             2 => ArchitectureIdentifier::Virtual,
@@ -168,7 +195,7 @@ impl fmt::Display for RegisterDesc {
         }
 
         if self.flags().contains(RegisterFlags::PHYSICAL) {
-            match self.architecture() {
+            match self.arch_id() {
                 ArchitectureIdentifier::Amd64 => {
                     write!(f, "{}TODO_AMD64{}", prefix, suffix)?;
                     return Ok(());
@@ -223,16 +250,25 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
 /// Routine calling convention information and associated metadata
 pub struct RoutineConvention {
     #[get = "pub"]
+    /// List of registers that may change as a result of the routine execution but
+    /// will be considered trashed
     volatile_registers: Vec<RegisterDesc>,
     #[get = "pub"]
+    /// List of regsiters that this routine wlil read from as a way of taking arguments
+    /// * Additional arguments will be passed at `[$sp + shadow_space + n * 8]`
     param_registers: Vec<RegisterDesc>,
     #[get = "pub"]
+    /// List of registers that are used to store the return value of the routine and
+    /// thus will change during routine execution but must be considered "used" by return
     retval_registers: Vec<RegisterDesc>,
     #[get = "pub"]
+    /// Register that is generally used to store the stack frame if relevant
     frame_register: RegisterDesc,
     #[get_copy = "pub"]
+    /// Size of the shadow space
     shadow_space: u64,
     #[get_copy = "pub"]
+    /// Purges any writes to stack that will be end up below the final stack pointer
     purge_stack: bool,
 }
 
@@ -283,8 +319,8 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RoutineConvention {
 
 #[derive(Clone, Copy)]
 union Immediate {
-    pub u64: u64,
-    pub i64: i64,
+    u64: u64,
+    i64: i64,
 }
 
 impl fmt::Debug for Immediate {
@@ -311,14 +347,17 @@ impl Immediate {
 pub struct ImmediateDesc {
     value: Immediate,
     #[get_copy = "pub"]
+    /// The bit count of this register (e.g.: 32)
     bit_count: u32,
 }
 
 impl ImmediateDesc {
+    /// Access the underlying immediate as an `i64`
     pub fn u64(&self) -> u64 {
         self.value.u64()
     }
 
+    /// Access the underlying immediate as a `u64`
     pub fn i64(&self) -> i64 {
         self.value.i64()
     }
@@ -346,7 +385,9 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
 #[derive(Debug)]
 /// VTIL instruction operand
 pub enum Operand {
+    /// Immediate operand containing a sized immediate value
     Imm(ImmediateDesc),
+    /// Register operand containing a register description
     Reg(RegisterDesc),
 }
 
@@ -372,16 +413,22 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Operand {
 /// VTIL instruction and associated metadata
 pub struct Instruction<'a> {
     #[get_copy = "pub"]
+    /// The name of the instruction (e.g.: `ldd`)
     name: &'a str,
     #[get = "pub"]
+    /// List of operands used in this instruction (in order)
     operands: Vec<Operand>,
     #[get_copy = "pub"]
+    /// The virtual instruction pointer of this instruction
     vip: u64,
     #[get_copy = "pub"]
+    /// Stack pointer offset at this instruction
     sp_offset: i64,
     #[get_copy = "pub"]
+    /// Stack instance index
     sp_index: u32,
     #[get_copy = "pub"]
+    /// If the stack pointer is reset at this instruction
     sp_reset: bool,
 }
 
@@ -423,18 +470,25 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
 /// Basic block containing a linear sequence of VTIL instructions
 pub struct BasicBlock<'a> {
     #[get_copy = "pub"]
+    /// The virtual instruction pointer at entry
     vip: Vip,
     #[get_copy = "pub"]
+    /// The stack pointer offset at entry
     sp_offset: i64,
     #[get_copy = "pub"]
+    /// The stack instance index at entry
     sp_index: u32,
     #[get_copy = "pub"]
+    /// Last temporary index used
     last_temporary_index: u32,
     #[get = "pub"]
+    /// List of instructions contained in this basic block (in order)
     instructions: Vec<Instruction<'a>>,
     #[get = "pub"]
+    /// Predecessor basic block entrypoint(s)
     prev_vip: Vec<Vip>,
     #[get = "pub"]
+    /// Successor basic block entrypoint(s)
     next_vip: Vec<Vip>,
 }
 
