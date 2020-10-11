@@ -4,8 +4,11 @@ use std::{error, io, str};
 #[derive(Debug)]
 /// Custom `Error` for VTIL parsing
 pub enum Error {
+    /// An error occured during parsing due to a malformed VTIL file
     Malformed(String),
+    /// An I/O error occured
     Io(io::Error),
+    /// Error inside of [Scroll](https://docs.rs/scroll) occured
     Scroll(scroll::Error),
 }
 
