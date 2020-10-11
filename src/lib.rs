@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+#![deny(missing_docs)]
 
 use memmap::{Mmap, MmapOptions};
 use ouroboros::self_referencing;
