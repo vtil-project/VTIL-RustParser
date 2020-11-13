@@ -2,7 +2,7 @@ use getset::{CopyGetters, Getters};
 use scroll::{ctx, Endian, Pread};
 use std::fmt;
 
-use super::{Error, Result};
+use super::{arch_info, Error, Result};
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
 const VTIL_MAGIC_2: u16 = 0xdead;
@@ -138,12 +138,12 @@ pub struct RegisterDesc {
 impl RegisterDesc {
     /// Local identifier that is intentionally unique to this register
     pub fn local_id(&self) -> u64 {
-        self.combined_id & 0x00ffffffffffffff
+        self.combined_id & !(0xff << 56)
     }
 
     /// The underlying architecture of this register
     pub fn arch_id(&self) -> ArchitectureIdentifier {
-        match self.combined_id & 0xff00000000000000 {
+        match self.combined_id & (0xff << 56) {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
             2 => ArchitectureIdentifier::Virtual,
@@ -197,11 +197,23 @@ impl fmt::Display for RegisterDesc {
         if self.flags().contains(RegisterFlags::PHYSICAL) {
             match self.arch_id() {
                 ArchitectureIdentifier::Amd64 => {
-                    write!(f, "{}TODO_AMD64{}", prefix, suffix)?;
+                    write!(
+                        f,
+                        "{}{}{}",
+                        prefix,
+                        arch_info::X86_REGISTER_NAME_MAPPING[self.local_id() as usize],
+                        suffix
+                    )?;
                     return Ok(());
                 }
                 ArchitectureIdentifier::Arm64 => {
-                    write!(f, "{}TODO_ARM64{}", prefix, suffix)?;
+                    write!(
+                        f,
+                        "{}{}{}",
+                        prefix,
+                        arch_info::AARCH64_REGISTER_NAME_MAPPING[self.local_id() as usize],
+                        suffix
+                    )?;
                     return Ok(());
                 }
                 _ => unreachable!(),
@@ -224,8 +236,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
         };
 
         let combined_id = source.gread_with::<u64>(offset, endian)?;
-        if combined_id & 0xff00000000000000 > 2 {
-            println!("{:#x}", combined_id);
+        if combined_id & (0xff << 56) > 2 {
             return Err(Error::Malformed(
                 "Register flags are invalid: >2".to_string(),
             ));

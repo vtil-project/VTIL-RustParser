@@ -64,6 +64,8 @@ pub use error::Error;
 mod parse;
 pub use parse::*;
 
+mod arch_info;
+
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
 
