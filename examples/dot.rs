@@ -43,14 +43,12 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
             pc
         );
 
-        let mut prev_instr = None;
         for instr in basic_block.instructions() {
-            let pretty = dump_instr(instr, prev_instr).unwrap();
+            let pretty = dump_instr(instr).unwrap();
             println!(
                 r#"            <tr><td align="left">{}</td></tr>"#,
                 escape(pretty)
             );
-            prev_instr = Some(instr);
         }
 
         println!(

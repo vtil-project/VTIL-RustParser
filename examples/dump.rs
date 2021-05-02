@@ -20,17 +20,11 @@ use shared::dump_instr;
 
 fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
     for basic_block in basic_blocks {
-        print!("Entry point VIP:       ");
-        println!("{:#x}", basic_block.vip().0);
-        print!("Stack pointer:         ");
-        if basic_block.sp_offset() < 0 {
-            println!("{:x}", basic_block.sp_offset());
-        }
+        println!("Entry point VIP:       {:#x}", basic_block.vip().0);
+        println!("Stack pointer:         {:x}", basic_block.sp_offset());
 
-        let mut prev_instr = None;
         for instr in basic_block.instructions() {
-            println!("{}", dump_instr(instr, prev_instr).unwrap());
-            prev_instr = Some(instr);
+            println!("{}", dump_instr(instr).unwrap());
         }
     }
 }
