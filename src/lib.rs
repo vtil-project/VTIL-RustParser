@@ -77,6 +77,7 @@
 //! # }
 //! ```
 
+#![allow(clippy::upper_case_acronyms)]
 #![deny(missing_docs)]
 
 use memmap::{Mmap, MmapOptions};

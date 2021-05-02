@@ -50,5 +50,5 @@ pub enum Error {
 
     /// Error during UTF-8 decoding, VTIL file is possibly malformed
     #[error("UTF-8 decoding error")]
-    Utf8Error(#[from] str::Utf8Error)
+    Utf8Error(#[from] str::Utf8Error),
 }
