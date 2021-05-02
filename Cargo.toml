@@ -11,11 +11,11 @@ keywords = ["parser", "vtil"]
 exclude = ["/resources"]
 
 [dependencies]
-scroll = "0.10"
-memmap = "0.7"
-getset = "0.1"
-ouroboros = "0.2"
-bitflags = "1.2"
+scroll = "0.10.2"
+memmap = "0.7.0"
+getset = "0.1.1"
+ouroboros = "0.9.2"
+bitflags = "1"
 
 [badges]
 travis-ci = { repository = "vtil-project/VTIL-RustParser", branch = "main" }

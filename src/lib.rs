@@ -100,11 +100,12 @@ mod arch_info;
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
 
-#[self_referencing(no_doc)]
 /// VTIL container
+#[self_referencing(no_doc)]
 pub struct VTIL<T: 'static> {
     source: Box<T>,
     #[borrows(source)]
+    #[covariant]
     pub(crate) inner: VTILInner<'this>,
     phantom: PhantomData<T>,
 }
@@ -112,33 +113,33 @@ pub struct VTIL<T: 'static> {
 impl<T> VTIL<T> {
     /// Header containing metadata about the VTIL container
     pub fn header(&self) -> &Header {
-        self.inner.header()
+        self.borrow_inner().header()
     }
 
     /// The entry virtual instruction pointer for this VTIL routine
     pub fn vip(&self) -> &Vip {
-        self.inner.vip()
+        self.borrow_inner().vip()
     }
 
     /// Metadata regarding the calling conventions of the VTIL routine
     pub fn routine_convention(&self) -> &RoutineConvention {
-        self.inner.routine_convention()
+        self.borrow_inner().routine_convention()
     }
 
     /// Metadata regarding the calling conventions of the VTIL subroutine
     pub fn subroutine_convention(&self) -> &SubroutineConvention {
-        self.inner.subroutine_convention()
+        self.borrow_inner().subroutine_convention()
     }
 
     /// All special subroutine calling conventions in the top-level VTIL routine
     pub fn spec_subroutine_conventions(&self) -> &Vec<SubroutineConvention> {
-        self.inner.spec_subroutine_conventions()
+        self.borrow_inner().spec_subroutine_conventions()
     }
 
     /// Reachable [`BasicBlock`]s generated during a code-discovery analysis
     /// pass
     pub fn explored_blocks(&self) -> &Vec<BasicBlock> {
-        self.inner.explored_blocks()
+        self.borrow_inner().explored_blocks()
     }
 }
 
