@@ -30,7 +30,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-use std::{io, str};
+use std::{fmt, io, str};
 use thiserror::Error;
 
 /// Custom `Error` for VTIL parsing
@@ -50,5 +50,9 @@ pub enum Error {
 
     /// Error during UTF-8 decoding, VTIL file is possibly malformed
     #[error("UTF-8 decoding error")]
-    Utf8Error(#[from] str::Utf8Error),
+    Utf8(#[from] str::Utf8Error),
+
+    /// Error during internal formatting
+    #[error("Formatting error")]
+    Formatting(#[from] fmt::Error),
 }
