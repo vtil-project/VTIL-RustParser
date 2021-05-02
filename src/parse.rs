@@ -31,7 +31,8 @@
 //
 
 use getset::{CopyGetters, Getters};
-use scroll::{ctx, Endian, Pread};
+use scroll::{ctx, Endian, Pread, Pwrite};
+use std::convert::TryInto;
 use std::fmt;
 
 use super::{arch_info, Error, Result};
@@ -68,6 +69,15 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ArchitectureIdentifier {
             },
             1,
         ))
+    }
+}
+
+impl ctx::TryIntoCtx<Endian> for ArchitectureIdentifier {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        sink.pwrite::<u8>(self as u8, 0)?;
+        Ok(1)
     }
 }
 
@@ -108,6 +118,19 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Header {
     }
 }
 
+impl ctx::TryIntoCtx<Endian> for Header {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u32>(VTIL_MAGIC_1, offset)?;
+        sink.gwrite::<ArchitectureIdentifier>(self.arch_id, offset)?;
+        sink.gwrite::<u8>(0, offset)?;
+        sink.gwrite::<u16>(VTIL_MAGIC_2, offset)?;
+        Ok(*offset)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 /// VTIL instruction pointer
@@ -119,6 +142,14 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Vip {
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
         let offset = &mut 0;
         Ok((Vip(source.gread_with::<u64>(offset, endian)?), *offset))
+    }
+}
+
+impl ctx::TryIntoCtx<Endian> for Vip {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        Ok(sink.pwrite::<u64>(self.0, 0)?)
     }
 }
 
@@ -289,6 +320,19 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
     }
 }
 
+impl ctx::TryIntoCtx<Endian> for RegisterDesc {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u64>(self.flags.bits, offset)?;
+        sink.gwrite::<u64>(self.combined_id, offset)?;
+        sink.gwrite::<i32>(self.bit_count, offset)?;
+        sink.gwrite::<i32>(self.bit_offset, offset)?;
+        Ok(*offset)
+    }
+}
+
 #[derive(Debug, CopyGetters, Getters)]
 /// Routine calling convention information and associated metadata
 pub struct RoutineConvention {
@@ -360,6 +404,34 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RoutineConvention {
     }
 }
 
+impl ctx::TryIntoCtx<Endian> for RoutineConvention {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<u32>(self.volatile_registers.len().try_into()?, offset)?;
+        for reg in self.volatile_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.param_registers.len().try_into()?, offset)?;
+        for reg in self.param_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.retval_registers.len().try_into()?, offset)?;
+        for reg in self.retval_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
+
+        sink.gwrite::<RegisterDesc>(self.frame_register, offset)?;
+        sink.gwrite::<u64>(self.shadow_space, offset)?;
+        sink.gwrite::<u8>(self.purge_stack.into(), offset)?;
+        Ok(*offset)
+    }
+}
+
 #[derive(Clone, Copy)]
 union Immediate {
     u64: u64,
@@ -425,6 +497,17 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
     }
 }
 
+impl ctx::TryIntoCtx<Endian> for ImmediateDesc {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u64>(self.value.u64(), offset)?;
+        sink.gwrite::<u32>(self.bit_count, offset)?;
+        Ok(*offset)
+    }
+}
+
 #[derive(Debug)]
 /// VTIL instruction operand
 pub enum Operand {
@@ -452,6 +535,25 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Operand {
     }
 }
 
+impl ctx::TryIntoCtx<Endian> for Operand {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        match self {
+            Operand::Imm(i) => {
+                sink.gwrite::<u32>(0, offset)?;
+                sink.gwrite::<ImmediateDesc>(i, offset)?;
+            }
+            Operand::Reg(r) => {
+                sink.gwrite::<u32>(1, offset)?;
+                sink.gwrite::<RegisterDesc>(r, offset)?;
+            }
+        }
+        Ok(*offset)
+    }
+}
+
 #[derive(Debug, CopyGetters, Getters)]
 /// VTIL instruction and associated metadata
 pub struct Instruction<'a> {
@@ -463,7 +565,7 @@ pub struct Instruction<'a> {
     operands: Vec<Operand>,
     #[get_copy = "pub"]
     /// The virtual instruction pointer of this instruction
-    vip: u64,
+    vip: Vip,
     #[get_copy = "pub"]
     /// Stack pointer offset at this instruction
     sp_offset: i64,
@@ -490,7 +592,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
             operands.push(source.gread_with(offset, endian)?);
         }
 
-        let vip = source.gread_with::<u64>(offset, endian)?;
+        let vip = source.gread_with::<Vip>(offset, endian)?;
         let sp_offset = source.gread_with::<i64>(offset, endian)?;
         let sp_index = source.gread_with::<u32>(offset, endian)?;
         let sp_reset = source.gread::<u8>(offset)? != 0;
@@ -506,6 +608,29 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
             },
             *offset,
         ))
+    }
+}
+
+impl<'a> ctx::TryIntoCtx<Endian> for Instruction<'a> {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<u32>(self.name.len().try_into()?, offset)?;
+        sink.gwrite::<&'a [u8]>(self.name.as_bytes(), offset)?;
+
+        sink.gwrite::<u32>(self.operands.len().try_into()?, offset)?;
+        for operand in self.operands {
+            sink.gwrite::<Operand>(operand, offset)?;
+        }
+
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<i64>(self.sp_offset, offset)?;
+        sink.gwrite::<u32>(self.sp_index, offset)?;
+        sink.gwrite::<u8>(self.sp_reset.into(), offset)?;
+
+        Ok(*offset)
     }
 }
 
@@ -579,6 +704,36 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for BasicBlock<'a> {
     }
 }
 
+impl<'a> ctx::TryIntoCtx<Endian> for BasicBlock<'a> {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<i64>(self.sp_offset, offset)?;
+        sink.gwrite::<u32>(self.sp_index, offset)?;
+        sink.gwrite::<u32>(self.last_temporary_index, offset)?;
+
+        sink.gwrite::<u32>(self.instructions.len().try_into()?, offset)?;
+        for instr in self.instructions {
+            sink.gwrite::<Instruction>(instr, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.prev_vip.len().try_into()?, offset)?;
+        for vip in self.prev_vip {
+            sink.gwrite::<Vip>(vip, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.next_vip.len().try_into()?, offset)?;
+        for vip in self.next_vip {
+            sink.gwrite::<Vip>(vip, offset)?;
+        }
+
+        Ok(*offset)
+    }
+}
+
 /// Alias for [`RoutineConvention`] for consistent naming
 pub type SubroutineConvention = RoutineConvention;
 
@@ -629,5 +784,30 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for VTILInner<'a> {
             },
             *offset,
         ))
+    }
+}
+
+impl<'a> ctx::TryIntoCtx<Endian> for VTILInner<'a> {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<Header>(self.header, offset)?;
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<RoutineConvention>(self.routine_convention, offset)?;
+        sink.gwrite::<SubroutineConvention>(self.subroutine_convention, offset)?;
+
+        sink.gwrite::<u32>(self.spec_subroutine_conventions.len().try_into()?, offset)?;
+        for convention in self.spec_subroutine_conventions {
+            sink.gwrite::<SubroutineConvention>(convention, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.explored_blocks.len().try_into()?, offset)?;
+        for basic_block in self.explored_blocks {
+            sink.gwrite::<BasicBlock>(basic_block, offset)?;
+        }
+
+        Ok(*offset)
     }
 }
