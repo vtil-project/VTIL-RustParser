@@ -30,7 +30,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-use std::{fmt, io, str};
+use std::{fmt, io, num, str};
 use thiserror::Error;
 
 /// Custom `Error` for VTIL parsing
@@ -55,4 +55,8 @@ pub enum Error {
     /// Error during internal formatting
     #[error("Formatting error")]
     Formatting(#[from] fmt::Error),
+
+    /// Overflowing during writing
+    #[error("Encoding error, value overflowed")]
+    TryFromInt(#[from] num::TryFromIntError),
 }

@@ -12,11 +12,49 @@
 // OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
-use std::env;
-use vtil_parser::{BasicBlock, Result, VTILReader};
+use std::{env, fmt::Write};
+use vtil_parser::{BasicBlock, Instruction, Operand, Result, VTILReader};
 
-mod shared;
-use shared::dump_instr;
+pub fn dump_instr(instr: &Instruction) -> Result<String> {
+    let mut buffer = String::new();
+
+    if instr.sp_index != 0 {
+        write!(buffer, "[{:04}] ", instr.sp_index)?;
+    } else {
+        write!(buffer, "       ")?;
+    }
+
+    if instr.sp_reset {
+        write!(
+            buffer,
+            ">{}{:>#4x} ",
+            if instr.sp_offset >= 0 { '+' } else { '-' },
+            instr.sp_offset.abs()
+        )?;
+    } else {
+        write!(
+            buffer,
+            " {}{:>#4x} ",
+            if instr.sp_offset >= 0 { '+' } else { '-' },
+            instr.sp_offset.abs()
+        )?;
+    }
+
+    write!(buffer, "{:<8} ", instr.name)?;
+
+    for op in &instr.operands {
+        match op {
+            Operand::Reg(r) => {
+                write!(buffer, "{:<12}", format!("{}", r))?;
+            }
+            Operand::Imm(i) => {
+                write!(buffer, "{:<#12x}", i.i64())?;
+            }
+        }
+    }
+
+    Ok(buffer)
+}
 
 fn escape(data: String) -> String {
     data.replace("&", "&amp;")
@@ -31,7 +69,7 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
     println!("digraph G {{");
 
     for basic_block in basic_blocks {
-        let pc = basic_block.vip().0;
+        let pc = basic_block.vip.0;
 
         println!(
             r#"vip_{0:x} [
@@ -43,7 +81,7 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
             pc
         );
 
-        for instr in basic_block.instructions() {
+        for instr in &basic_block.instructions {
             let pretty = dump_instr(instr).unwrap();
             println!(
                 r#"            <tr><td align="left">{}</td></tr>"#,
@@ -57,7 +95,7 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
 ];"#
         );
 
-        let successors = basic_block.next_vip();
+        let successors = &basic_block.next_vip;
         if successors.len() == 2 {
             println!(
                 r#"vip_{:x} -> vip_{:x} [color="green"];"#,
@@ -80,6 +118,6 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
 fn main() -> Result<()> {
     let mut argv = env::args();
     let routine = VTILReader::from_path(argv.nth(1).unwrap())?;
-    dump_routine(routine.explored_blocks());
+    dump_routine(&routine.explored_blocks);
     Ok(())
 }

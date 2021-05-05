@@ -30,25 +30,17 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-use getset::{CopyGetters, Getters};
-use scroll::{ctx, Endian, Pread};
-use std::fmt;
+use scroll::{ctx, Endian, Pread, Pwrite};
+use std::convert::TryInto;
 
-use super::{arch_info, Error, Result};
+use super::{
+    ArchitectureIdentifier, BasicBlock, Error, Header, Immediate, ImmediateDesc, Instruction,
+    Operand, RegisterDesc, RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip,
+    VTIL,
+};
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
 const VTIL_MAGIC_2: u16 = 0xdead;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// Architecture for IL inside of VTIL routines
-pub enum ArchitectureIdentifier {
-    /// AMD64 (otherwise known as x86_64) architecture
-    Amd64,
-    /// AArch64 architecture
-    Arm64,
-    /// Virtual architecture (contains no physical register access)
-    Virtual,
-}
 
 impl<'a> ctx::TryFromCtx<'a, Endian> for ArchitectureIdentifier {
     type Error = Error;
@@ -71,12 +63,13 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ArchitectureIdentifier {
     }
 }
 
-#[derive(Debug, CopyGetters)]
-#[get_copy = "pub"]
-/// Header containing metadata regarding the VTIL container
-pub struct Header {
-    /// The architecture used by the VTIL routine
-    arch_id: ArchitectureIdentifier,
+impl ctx::TryIntoCtx<Endian> for ArchitectureIdentifier {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        sink.pwrite::<u8>(self as u8, 0)?;
+        Ok(1)
+    }
 }
 
 impl<'a> ctx::TryFromCtx<'a, Endian> for Header {
@@ -108,10 +101,18 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Header {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-/// VTIL instruction pointer
-pub struct Vip(pub u64);
+impl ctx::TryIntoCtx<Endian> for Header {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u32>(VTIL_MAGIC_1, offset)?;
+        sink.gwrite::<ArchitectureIdentifier>(self.arch_id, offset)?;
+        sink.gwrite::<u8>(0, offset)?;
+        sink.gwrite::<u16>(VTIL_MAGIC_2, offset)?;
+        Ok(*offset)
+    }
+}
 
 impl<'a> ctx::TryFromCtx<'a, Endian> for Vip {
     type Error = Error;
@@ -122,138 +123,11 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Vip {
     }
 }
 
-bitflags! {
-    /// Flags describing register properties
-    pub struct RegisterFlags: u64 {
-        /// Default value if no flags set. Read/write pure virtual register that
-        /// is not a stack pointer or flags
-        const VIRTUAL = 0;
-        /// Indicates that the register is a physical register
-        const PHYSICAL = 1 << 0;
-        /// Indicates that the register is a local temporary register of the current basic block
-        const LOCAL = 1 << 1;
-        /// Indicates that the register is used to hold CPU flags
-        const FLAGS = 1 << 2;
-        /// Indicates that the register is used as the stack pointer
-        const STACK_POINTER = 1 << 3;
-        /// Indicates that the register is an alias to the image base
-        const IMAGE_BASE = 1 << 4;
-        /// Indicates that the register can change spontanously (e.g.: IA32_TIME_STAMP_COUNTER)
-        const VOLATILE = 1 << 5;
-        /// Indicates that the register can change spontanously (e.g.: IA32_TIME_STAMP_COUNTER)
-        const READONLY = 1 << 6;
-        /// Indicates that it is the special "undefined" register
-        const UNDEFINED = 1 << 7;
-        /// Indicates that it is a internal-use register that should be treated
-        /// like any other virtual register
-        const INTERNAL = 1 << 8;
-        /// Combined mask of all special registers
-        const SPECIAL = Self::FLAGS.bits | Self::STACK_POINTER.bits | Self::IMAGE_BASE.bits | Self::UNDEFINED.bits;
-    }
-}
+impl ctx::TryIntoCtx<Endian> for Vip {
+    type Error = Error;
 
-#[derive(Debug, CopyGetters)]
-/// Describes a VTIL register in an operand
-pub struct RegisterDesc {
-    #[get_copy = "pub"]
-    /// Flags describing the register
-    flags: RegisterFlags,
-    combined_id: u64,
-    #[get_copy = "pub"]
-    /// The bit count of this register (e.g.: 32)
-    bit_count: i32,
-    #[get_copy = "pub"]
-    /// The bit offset of register access
-    bit_offset: i32,
-}
-
-impl RegisterDesc {
-    /// Local identifier that is intentionally unique to this register
-    pub fn local_id(&self) -> u64 {
-        self.combined_id & !(0xff << 56)
-    }
-
-    /// The underlying architecture of this register
-    pub fn arch_id(&self) -> ArchitectureIdentifier {
-        match self.combined_id & (0xff << 56) {
-            0 => ArchitectureIdentifier::Amd64,
-            1 => ArchitectureIdentifier::Arm64,
-            2 => ArchitectureIdentifier::Virtual,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl fmt::Display for RegisterDesc {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut prefix = String::new();
-
-        if self.flags.contains(RegisterFlags::VOLATILE) {
-            prefix = "?".to_string();
-        }
-
-        if self.flags.contains(RegisterFlags::READONLY) {
-            prefix += "&&";
-        }
-
-        let mut suffix = String::new();
-
-        if self.bit_offset() != 0 {
-            suffix = format!("@{}", self.bit_offset());
-        }
-
-        if self.bit_count() != 64 {
-            suffix.push_str(&format!(":{}", self.bit_count()));
-        }
-
-        if self.flags.contains(RegisterFlags::INTERNAL) {
-            write!(f, "{}sr{}{}", prefix, self.local_id(), suffix)?;
-            return Ok(());
-        } else if self.flags.contains(RegisterFlags::UNDEFINED) {
-            write!(f, "{}UD{}", prefix, suffix)?;
-            return Ok(());
-        } else if self.flags.contains(RegisterFlags::FLAGS) {
-            write!(f, "{}$flags{}", prefix, suffix)?;
-            return Ok(());
-        } else if self.flags.contains(RegisterFlags::STACK_POINTER) {
-            write!(f, "{}$sp{}", prefix, suffix)?;
-            return Ok(());
-        } else if self.flags.contains(RegisterFlags::IMAGE_BASE) {
-            write!(f, "{}base{}", prefix, suffix)?;
-            return Ok(());
-        } else if self.flags.contains(RegisterFlags::LOCAL) {
-            write!(f, "{}t{}{}", prefix, self.local_id(), suffix)?;
-            return Ok(());
-        }
-
-        if self.flags().contains(RegisterFlags::PHYSICAL) {
-            match self.arch_id() {
-                ArchitectureIdentifier::Amd64 => {
-                    write!(
-                        f,
-                        "{}{}{}",
-                        prefix,
-                        arch_info::X86_REGISTER_NAME_MAPPING[self.local_id() as usize],
-                        suffix
-                    )?;
-                    return Ok(());
-                }
-                ArchitectureIdentifier::Arm64 => {
-                    write!(
-                        f,
-                        "{}{}{}",
-                        prefix,
-                        arch_info::AARCH64_REGISTER_NAME_MAPPING[self.local_id() as usize],
-                        suffix
-                    )?;
-                    return Ok(());
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        write!(f, "{}vr{}{}", prefix, self.local_id(), suffix)?;
-        Ok(())
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        Ok(sink.pwrite::<u64>(self.0, 0)?)
     }
 }
 
@@ -263,9 +137,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
         let offset = &mut 0;
 
-        let flags = RegisterFlags {
-            bits: source.gread_with::<u64>(offset, endian)?,
-        };
+        let flags = RegisterFlags::from_bits_truncate(source.gread_with::<u64>(offset, endian)?);
 
         let combined_id = source.gread_with::<u64>(offset, endian)?;
         if combined_id & (0xff << 56) > 2 {
@@ -289,30 +161,17 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
     }
 }
 
-#[derive(Debug, CopyGetters, Getters)]
-/// Routine calling convention information and associated metadata
-pub struct RoutineConvention {
-    #[get = "pub"]
-    /// List of registers that may change as a result of the routine execution but
-    /// will be considered trashed
-    volatile_registers: Vec<RegisterDesc>,
-    #[get = "pub"]
-    /// List of regsiters that this routine wlil read from as a way of taking arguments
-    /// * Additional arguments will be passed at `[$sp + shadow_space + n * 8]`
-    param_registers: Vec<RegisterDesc>,
-    #[get = "pub"]
-    /// List of registers that are used to store the return value of the routine and
-    /// thus will change during routine execution but must be considered "used" by return
-    retval_registers: Vec<RegisterDesc>,
-    #[get = "pub"]
-    /// Register that is generally used to store the stack frame if relevant
-    frame_register: RegisterDesc,
-    #[get_copy = "pub"]
-    /// Size of the shadow space
-    shadow_space: u64,
-    #[get_copy = "pub"]
-    /// Purges any writes to stack that will be end up below the final stack pointer
-    purge_stack: bool,
+impl ctx::TryIntoCtx<Endian> for RegisterDesc {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u64>(self.flags.bits(), offset)?;
+        sink.gwrite::<u64>(self.combined_id, offset)?;
+        sink.gwrite::<i32>(self.bit_count, offset)?;
+        sink.gwrite::<i32>(self.bit_offset, offset)?;
+        Ok(*offset)
+    }
 }
 
 impl<'a> ctx::TryFromCtx<'a, Endian> for RoutineConvention {
@@ -360,49 +219,31 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RoutineConvention {
     }
 }
 
-#[derive(Clone, Copy)]
-union Immediate {
-    u64: u64,
-    i64: i64,
-}
+impl ctx::TryIntoCtx<Endian> for RoutineConvention {
+    type Error = Error;
 
-impl fmt::Debug for Immediate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Immediate")
-            .field("u64", &self.u64())
-            .field("i64", &self.i64())
-            .finish()
-    }
-}
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
 
-impl Immediate {
-    fn u64(&self) -> u64 {
-        unsafe { self.u64 }
-    }
+        sink.gwrite::<u32>(self.volatile_registers.len().try_into()?, offset)?;
+        for reg in self.volatile_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
 
-    fn i64(&self) -> i64 {
-        unsafe { self.i64 }
-    }
-}
+        sink.gwrite::<u32>(self.param_registers.len().try_into()?, offset)?;
+        for reg in self.param_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
 
-#[derive(Debug, CopyGetters)]
-/// Describes a VTIL immediate value in an operand
-pub struct ImmediateDesc {
-    value: Immediate,
-    #[get_copy = "pub"]
-    /// The bit count of this register (e.g.: 32)
-    bit_count: u32,
-}
+        sink.gwrite::<u32>(self.retval_registers.len().try_into()?, offset)?;
+        for reg in self.retval_registers {
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
+        }
 
-impl ImmediateDesc {
-    /// Access the underlying immediate as an `i64`
-    pub fn u64(&self) -> u64 {
-        self.value.u64()
-    }
-
-    /// Access the underlying immediate as a `u64`
-    pub fn i64(&self) -> i64 {
-        self.value.i64()
+        sink.gwrite::<RegisterDesc>(self.frame_register, offset)?;
+        sink.gwrite::<u64>(self.shadow_space, offset)?;
+        sink.gwrite::<u8>(self.purge_stack.into(), offset)?;
+        Ok(*offset)
     }
 }
 
@@ -425,13 +266,15 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
     }
 }
 
-#[derive(Debug)]
-/// VTIL instruction operand
-pub enum Operand {
-    /// Immediate operand containing a sized immediate value
-    Imm(ImmediateDesc),
-    /// Register operand containing a register description
-    Reg(RegisterDesc),
+impl ctx::TryIntoCtx<Endian> for ImmediateDesc {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        sink.gwrite::<u64>(self.value.u64(), offset)?;
+        sink.gwrite::<u32>(self.bit_count, offset)?;
+        Ok(*offset)
+    }
 }
 
 impl<'a> ctx::TryFromCtx<'a, Endian> for Operand {
@@ -452,37 +295,34 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Operand {
     }
 }
 
-#[derive(Debug, CopyGetters, Getters)]
-/// VTIL instruction and associated metadata
-pub struct Instruction<'a> {
-    #[get_copy = "pub"]
-    /// The name of the instruction (e.g.: `ldd`)
-    name: &'a str,
-    #[get = "pub"]
-    /// List of operands used in this instruction (in order)
-    operands: Vec<Operand>,
-    #[get_copy = "pub"]
-    /// The virtual instruction pointer of this instruction
-    vip: u64,
-    #[get_copy = "pub"]
-    /// Stack pointer offset at this instruction
-    sp_offset: i64,
-    #[get_copy = "pub"]
-    /// Stack instance index
-    sp_index: u32,
-    #[get_copy = "pub"]
-    /// If the stack pointer is reset at this instruction
-    sp_reset: bool,
+impl ctx::TryIntoCtx<Endian> for Operand {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+        match self {
+            Operand::Imm(i) => {
+                sink.gwrite::<u32>(0, offset)?;
+                sink.gwrite::<ImmediateDesc>(i, offset)?;
+            }
+            Operand::Reg(r) => {
+                sink.gwrite::<u32>(1, offset)?;
+                sink.gwrite::<RegisterDesc>(r, offset)?;
+            }
+        }
+        Ok(*offset)
+    }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
+impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
         let offset = &mut 0;
 
         let name_size = source.gread_with::<u32>(offset, endian)?;
-        let name = std::str::from_utf8(source.gread_with::<&'a [u8]>(offset, name_size as usize)?)?;
+        let name = std::str::from_utf8(source.gread_with::<&'a [u8]>(offset, name_size as usize)?)?
+            .to_string();
 
         let operands_count = source.gread_with::<u32>(offset, endian)?;
         let mut operands = Vec::<Operand>::with_capacity(operands_count as usize);
@@ -490,7 +330,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
             operands.push(source.gread_with(offset, endian)?);
         }
 
-        let vip = source.gread_with::<u64>(offset, endian)?;
+        let vip = source.gread_with::<Vip>(offset, endian)?;
         let sp_offset = source.gread_with::<i64>(offset, endian)?;
         let sp_index = source.gread_with::<u32>(offset, endian)?;
         let sp_reset = source.gread::<u8>(offset)? != 0;
@@ -509,33 +349,30 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction<'a> {
     }
 }
 
-#[derive(Debug, CopyGetters, Getters)]
-/// Basic block containing a linear sequence of VTIL instructions
-pub struct BasicBlock<'a> {
-    #[get_copy = "pub"]
-    /// The virtual instruction pointer at entry
-    vip: Vip,
-    #[get_copy = "pub"]
-    /// The stack pointer offset at entry
-    sp_offset: i64,
-    #[get_copy = "pub"]
-    /// The stack instance index at entry
-    sp_index: u32,
-    #[get_copy = "pub"]
-    /// Last temporary index used
-    last_temporary_index: u32,
-    #[get = "pub"]
-    /// List of instructions contained in this basic block (in order)
-    instructions: Vec<Instruction<'a>>,
-    #[get = "pub"]
-    /// Predecessor basic block entrypoint(s)
-    prev_vip: Vec<Vip>,
-    #[get = "pub"]
-    /// Successor basic block entrypoint(s)
-    next_vip: Vec<Vip>,
+impl ctx::TryIntoCtx<Endian> for Instruction {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<u32>(self.name.len().try_into()?, offset)?;
+        sink.gwrite::<&[u8]>(self.name.as_bytes(), offset)?;
+
+        sink.gwrite::<u32>(self.operands.len().try_into()?, offset)?;
+        for operand in self.operands {
+            sink.gwrite::<Operand>(operand, offset)?;
+        }
+
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<i64>(self.sp_offset, offset)?;
+        sink.gwrite::<u32>(self.sp_index, offset)?;
+        sink.gwrite::<u8>(self.sp_reset.into(), offset)?;
+
+        Ok(*offset)
+    }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for BasicBlock<'a> {
+impl<'a> ctx::TryFromCtx<'a, Endian> for BasicBlock {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
@@ -579,22 +416,37 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for BasicBlock<'a> {
     }
 }
 
-/// Alias for [`RoutineConvention`] for consistent naming
-pub type SubroutineConvention = RoutineConvention;
+impl ctx::TryIntoCtx<Endian> for BasicBlock {
+    type Error = Error;
 
-#[derive(Debug, Getters)]
-#[get = "pub(crate)"]
-#[doc(hidden)]
-pub struct VTILInner<'a> {
-    header: Header,
-    vip: Vip,
-    routine_convention: RoutineConvention,
-    subroutine_convention: SubroutineConvention,
-    spec_subroutine_conventions: Vec<SubroutineConvention>,
-    explored_blocks: Vec<BasicBlock<'a>>,
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<i64>(self.sp_offset, offset)?;
+        sink.gwrite::<u32>(self.sp_index, offset)?;
+        sink.gwrite::<u32>(self.last_temporary_index, offset)?;
+
+        sink.gwrite::<u32>(self.instructions.len().try_into()?, offset)?;
+        for instr in self.instructions {
+            sink.gwrite::<Instruction>(instr, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.prev_vip.len().try_into()?, offset)?;
+        for vip in self.prev_vip {
+            sink.gwrite::<Vip>(vip, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.next_vip.len().try_into()?, offset)?;
+        for vip in self.next_vip {
+            sink.gwrite::<Vip>(vip, offset)?;
+        }
+
+        Ok(*offset)
+    }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for VTILInner<'a> {
+impl<'a> ctx::TryFromCtx<'a, Endian> for VTIL {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
@@ -619,7 +471,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for VTILInner<'a> {
         }
 
         Ok((
-            VTILInner {
+            VTIL {
                 header,
                 vip,
                 routine_convention,
@@ -629,5 +481,30 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for VTILInner<'a> {
             },
             *offset,
         ))
+    }
+}
+
+impl<'a> ctx::TryIntoCtx<Endian> for VTIL {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        sink.gwrite::<Header>(self.header, offset)?;
+        sink.gwrite::<Vip>(self.vip, offset)?;
+        sink.gwrite::<RoutineConvention>(self.routine_convention, offset)?;
+        sink.gwrite::<SubroutineConvention>(self.subroutine_convention, offset)?;
+
+        sink.gwrite::<u32>(self.spec_subroutine_conventions.len().try_into()?, offset)?;
+        for convention in self.spec_subroutine_conventions {
+            sink.gwrite::<SubroutineConvention>(convention, offset)?;
+        }
+
+        sink.gwrite::<u32>(self.explored_blocks.len().try_into()?, offset)?;
+        for basic_block in self.explored_blocks {
+            sink.gwrite::<BasicBlock>(basic_block, offset)?;
+        }
+
+        Ok(*offset)
     }
 }
