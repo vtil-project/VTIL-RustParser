@@ -31,7 +31,7 @@
 //
 //! # VTIL-RustParser
 //!
-//! An in-place parser for VTIL files written in Rust.
+//! Read/write VTIL files in Rust.
 //!
 //! You can learn more about VTIL [here](https://github.com/vtil-project/VTIL-Core#introduction)
 //! on the main GitHub page.
@@ -44,7 +44,7 @@
 //!
 //! # fn main() -> Result<()> {
 //! let routine = VTILReader::from_path("resources/big.vtil")?;
-//! assert_eq!(routine.header().arch_id(), ArchitectureIdentifier::Amd64);
+//! assert_eq!(routine.header.arch_id, ArchitectureIdentifier::Amd64);
 //! # Ok(())
 //! # }
 //! ```
@@ -57,20 +57,20 @@
 //! # fn main() -> Result<()> {
 //! let routine = VTILReader::from_path("resources/big.vtil")?;
 //!
-//! for basic_block in routine.explored_blocks().iter().take(1) {
-//!     for instr in basic_block.instructions().iter().take(1) {
-//!         assert_eq!(instr.name(), "ldd");
-//!         assert_eq!(instr.operands().len(), 3);
+//! for basic_block in routine.explored_blocks.iter().take(1) {
+//!     for instr in basic_block.instructions.iter().take(1) {
+//!         assert_eq!(instr.name, "ldd");
+//!         assert_eq!(instr.operands.len(), 3);
 //!
-//!         if let Operand::Reg(reg) = &instr.operands()[1] {
-//!             assert!(reg.flags().contains(RegisterFlags::PHYSICAL));
+//!         if let Operand::Reg(reg) = &instr.operands[1] {
+//!             assert!(reg.flags.contains(RegisterFlags::PHYSICAL));
 //!         } else { unreachable!() }
 //!
-//!         if let Operand::Imm(imm) = &instr.operands()[2] {
+//!         if let Operand::Imm(imm) = &instr.operands[2] {
 //!             assert_eq!(imm.i64(), 0);
 //!         } else { unreachable!() }
 //!
-//!         assert_eq!(instr.vip(), 0x9b833);
+//!         assert_eq!(instr.vip.0, 0x9b833);
 //!     }
 //! }
 //! # Ok(())
@@ -80,11 +80,9 @@
 #![allow(clippy::upper_case_acronyms)]
 #![deny(missing_docs)]
 
-use memmap::{Mmap, MmapOptions};
-use ouroboros::self_referencing;
-use scroll::Pread;
+use memmap::MmapOptions;
+use scroll::{Pread, Pwrite};
 use std::fs::File;
-use std::marker::PhantomData;
 use std::path::Path;
 
 #[macro_use]
@@ -93,79 +91,55 @@ extern crate bitflags;
 mod error;
 pub use error::Error;
 
-mod parse;
-pub use parse::*;
-
 mod arch_info;
+
+mod pod;
+pub use pod::*;
+
+mod serialize;
+pub use serialize::*;
 
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
-
-/// VTIL container
-#[self_referencing(no_doc)]
-pub struct VTIL<T: 'static> {
-    source: Box<T>,
-    #[borrows(source)]
-    #[covariant]
-    pub(crate) inner: VTILInner<'this>,
-    phantom: PhantomData<T>,
-}
-
-impl<T> VTIL<T> {
-    /// Header containing metadata about the VTIL container
-    pub fn header(&self) -> &Header {
-        self.borrow_inner().header()
-    }
-
-    /// The entry virtual instruction pointer for this VTIL routine
-    pub fn vip(&self) -> &Vip {
-        self.borrow_inner().vip()
-    }
-
-    /// Metadata regarding the calling conventions of the VTIL routine
-    pub fn routine_convention(&self) -> &RoutineConvention {
-        self.borrow_inner().routine_convention()
-    }
-
-    /// Metadata regarding the calling conventions of the VTIL subroutine
-    pub fn subroutine_convention(&self) -> &SubroutineConvention {
-        self.borrow_inner().subroutine_convention()
-    }
-
-    /// All special subroutine calling conventions in the top-level VTIL routine
-    pub fn spec_subroutine_conventions(&self) -> &Vec<SubroutineConvention> {
-        self.borrow_inner().spec_subroutine_conventions()
-    }
-
-    /// Reachable [`BasicBlock`]s generated during a code-discovery analysis
-    /// pass
-    pub fn explored_blocks(&self) -> &Vec<BasicBlock> {
-        self.borrow_inner().explored_blocks()
-    }
-}
 
 /// Reader for VTIL containers
 pub struct VTILReader;
 
 impl VTILReader {
     /// Tries to load VTIL from the given path
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<VTIL<Mmap>> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<VTIL> {
         let source = Box::new(unsafe { MmapOptions::new().map(&File::open(path.as_ref())?)? });
-        VTILTryBuilder {
-            source,
-            inner_builder: |source| source.pread_with::<VTILInner>(0, scroll::LE),
-            phantom: PhantomData,
-        }
-        .try_build()
+        source.pread_with::<VTIL>(0, scroll::LE)
     }
 
     /// Loads VTIL from a `Vec<u8>`
-    pub fn from_vec<B: AsRef<[u8]>>(source: B) -> Result<VTIL<B>> {
-        VTILTryBuilder {
-            source: Box::new(source),
-            inner_builder: |source| source.as_ref().pread_with::<VTILInner>(0, scroll::LE),
-            phantom: PhantomData,
+    pub fn from_vec<B: AsRef<[u8]>>(source: B) -> Result<VTIL> {
+        source.as_ref().pread_with::<VTIL>(0, scroll::LE)
+    }
+}
+
+impl VTIL {
+    /// Build a new VTIL container
+    pub fn new(
+        arch_id: ArchitectureIdentifier,
+        vip: Vip,
+        routine_convention: RoutineConvention,
+        subroutine_convention: SubroutineConvention,
+    ) -> VTIL {
+        VTIL {
+            header: Header { arch_id },
+            vip,
+            routine_convention,
+            subroutine_convention,
+            spec_subroutine_conventions: vec![],
+            explored_blocks: vec![],
         }
-        .try_build()
+    }
+
+    /// Serialize the VTIL container, consuming it
+    pub fn into_bytes(self) -> Result<Vec<u8>> {
+        let mut buffer = Vec::<u8>::new();
+        buffer.pwrite_with::<VTIL>(self, 0, scroll::LE)?;
+        Ok(buffer)
     }
 }

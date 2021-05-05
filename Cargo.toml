@@ -3,7 +3,7 @@ name = "vtil-parser"
 version = "0.3.0"
 authors = ["Keegan Saunders <keegan@undefinedbehaviour.org>"]
 edition = "2018"
-description = "An in-place parser for VTIL files written in Rust."
+description = "Read/write VTIL files in Rust."
 documentation = "https://docs.rs/vtil-parser"
 repository = "https://github.com/vtil-project/VTIL-RustParser"
 license = "BSD-3-Clause"
@@ -13,8 +13,6 @@ exclude = ["/resources"]
 [dependencies]
 scroll = "0.10.2"
 memmap = "0.7.0"
-getset = "0.1.1"
-ouroboros = "0.9.2"
 bitflags = "1"
 thiserror = "1"
 
