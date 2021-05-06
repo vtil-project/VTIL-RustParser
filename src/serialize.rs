@@ -34,8 +34,8 @@ use scroll::{ctx, Endian, Pread, Pwrite};
 use std::convert::TryInto;
 
 use super::{
-    ArchitectureIdentifier, BasicBlock, Error, Header, Imm, Immediate, Instruction, Operand, Reg,
-    RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip, VTIL,
+    ArchitectureIdentifier, BasicBlock, Error, Header, Imm, Immediate, Instruction, Op, Operand,
+    Reg, RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip, VTIL,
 };
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
@@ -310,22 +310,494 @@ impl ctx::TryIntoCtx<Endian> for Operand {
     }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction {
+impl<'a> ctx::TryFromCtx<'a, Endian> for Op {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
         let offset = &mut 0;
 
         let name_size = source.gread_with::<u32>(offset, endian)?;
-        let name = std::str::from_utf8(source.gread_with::<&'a [u8]>(offset, name_size as usize)?)?
-            .to_string();
+        let name = std::str::from_utf8(source.gread_with::<&'a [u8]>(offset, name_size as usize)?)?;
 
         let operands_count = source.gread_with::<u32>(offset, endian)?;
-        let mut operands = Vec::<Operand>::with_capacity(operands_count as usize);
-        for _ in 0..operands_count {
-            operands.push(source.gread_with(offset, endian)?);
+
+        match name {
+            "mov" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Mov(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "movsx" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Movsx(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "str" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Str(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "ldd" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Ldd(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "neg" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Neg(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "add" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Add(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "sub" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Sub(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "mul" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Mul(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "mulhi" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Mulhi(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "imul" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Imul(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "imulhi" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Imulhi(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "div" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Div(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "rem" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Rem(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "idiv" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Idiv(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "irem" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Irem(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "popcnt" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Popcnt(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "bsf" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Bsf(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "bsr" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Bsr(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "not" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Not(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "shr" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Shr(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "shl" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Shl(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "xor" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Xor(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "or" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Or(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "and" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::And(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "ror" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Ror(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "rol" => {
+                if operands_count == 2 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Rol(op1, op2), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tg" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tg(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tge" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tge(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "te" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Te(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tne" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tne(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tl" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tl(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tle" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tle(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tug" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tug(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tuge" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tuge(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tul" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tul(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "tule" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Tule(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "ifs" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Ifs(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "js" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Js(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "jmp" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Jmp(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vexit" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vexit(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vxcall" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vxcall(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "nop" => {
+                if operands_count == 0 {
+                    Ok((Op::Nop, *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "sfence" => {
+                if operands_count == 0 {
+                    Ok((Op::Sfence, *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "lfence" => {
+                if operands_count == 0 {
+                    Ok((Op::Lfence, *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vemit" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vemit(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vpinr" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vpinr(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vpinw" => {
+                if operands_count == 1 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vpinw(op1), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vpinrm" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vpinrm(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            "vpinwm" => {
+                if operands_count == 3 {
+                    let op1 = source.gread_with::<Operand>(offset, endian)?;
+                    let op2 = source.gread_with::<Operand>(offset, endian)?;
+                    let op3 = source.gread_with::<Operand>(offset, endian)?;
+                    Ok((Op::Vpinwm(op1, op2, op3), *offset))
+                } else {
+                    Err(Error::OperandMismatch)
+                }
+            }
+            _ => Err(Error::Malformed(format!("Invalid operation: {}", name))),
+        }
+    }
+}
+
+impl ctx::TryIntoCtx<Endian> for Op {
+    type Error = Error;
+
+    fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
+        let offset = &mut 0;
+
+        let name = self.name();
+
+        sink.gwrite::<u32>(name.len().try_into()?, offset)?;
+        sink.gwrite::<&[u8]>(name.as_bytes(), offset)?;
+
+        sink.gwrite::<u32>(self.operands().len().try_into()?, offset)?;
+        for operand in self.operands() {
+            sink.gwrite::<Operand>(*operand, offset)?;
         }
 
+        Ok(*offset)
+    }
+}
+
+impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction {
+    type Error = Error;
+
+    fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
+        let offset = &mut 0;
+
+        let op = source.gread_with::<Op>(offset, endian)?;
         let vip = source.gread_with::<Vip>(offset, endian)?;
         let sp_offset = source.gread_with::<i64>(offset, endian)?;
         let sp_index = source.gread_with::<u32>(offset, endian)?;
@@ -333,8 +805,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Instruction {
 
         Ok((
             Instruction {
-                name,
-                operands,
+                op,
                 vip,
                 sp_offset,
                 sp_index,
@@ -351,14 +822,7 @@ impl ctx::TryIntoCtx<Endian> for Instruction {
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
         let offset = &mut 0;
 
-        sink.gwrite::<u32>(self.name.len().try_into()?, offset)?;
-        sink.gwrite::<&[u8]>(self.name.as_bytes(), offset)?;
-
-        sink.gwrite::<u32>(self.operands.len().try_into()?, offset)?;
-        for operand in self.operands {
-            sink.gwrite::<Operand>(operand, offset)?;
-        }
-
+        sink.gwrite::<Op>(self.op, offset)?;
         sink.gwrite::<Vip>(self.vip, offset)?;
         sink.gwrite::<i64>(self.sp_offset, offset)?;
         sink.gwrite::<u32>(self.sp_index, offset)?;

@@ -1,5 +1,5 @@
-use crate::arch_info;
-use std::fmt;
+use crate::{arch_info, Error, Result};
+use std::{convert::TryInto, fmt};
 
 /// Architecture for IL inside of VTIL routines
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -55,7 +55,7 @@ bitflags! {
 }
 
 /// Describes a VTIL register in an operand
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Reg {
     /// Flags describing the register
     pub flags: RegisterFlags,
@@ -148,7 +148,7 @@ impl fmt::Display for Reg {
                     )?;
                     return Ok(());
                 }
-                _ => unreachable!(),
+                _ => {}
             }
         }
 
@@ -211,7 +211,7 @@ impl fmt::Debug for Immediate {
 }
 
 /// Describes a VTIL immediate value in an operand
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Imm {
     pub(crate) value: Immediate,
     /// The bit count of this register (e.g.: 32)
@@ -259,12 +259,40 @@ impl Imm {
 }
 
 /// VTIL instruction operand
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operand {
     /// Immediate operand containing a sized immediate value
     Imm(Imm),
     /// Register operand containing a register description
     Reg(Reg),
+}
+
+impl<'a, 'b> TryInto<&'b Imm> for &'a Operand
+where
+    'a: 'b,
+{
+    type Error = Error;
+
+    fn try_into(self) -> Result<&'a Imm> {
+        match self {
+            Operand::Imm(ref i) => Ok(i),
+            _ => Err(Error::OperandTypeMismatch),
+        }
+    }
+}
+
+impl<'a, 'b> TryInto<&'b Reg> for &'a Operand
+where
+    'a: 'b,
+{
+    type Error = Error;
+
+    fn try_into(self) -> Result<&'a Reg> {
+        match self {
+            Operand::Reg(r) => Ok(r),
+            _ => Err(Error::OperandTypeMismatch),
+        }
+    }
 }
 
 /// VTIL instruction and associated metadata
@@ -284,92 +312,92 @@ pub struct Instruction {
 
 /// VTIL operator and operands
 #[derive(Debug)]
-enum Op {
+pub enum Op {
     // Data/Memory instructions
     /// OP1 = ZX(OP2)
-    Mov(Reg, Operand),
+    Mov(Operand, Operand),
     /// OP1 = SX(OP2)
-    Movsx(Reg, Operand),
-    /// [OP1+OP2] <= OP3
-    Str(Reg, Imm, Operand),
-    /// OP1 <= [OP2+OP3]
-    Ldd(Reg, Reg, Imm),
+    Movsx(Operand, Operand),
+    /// \[OP1+OP2\] <= OP3
+    Str(Operand, Operand, Operand),
+    /// OP1 <= \[OP2+OP3\]
+    Ldd(Operand, Operand, Operand),
 
     // Arithmetic instructions
     /// OP1 = -OP1
-    Neg(Reg),
+    Neg(Operand),
     /// OP1 = OP1 + OP2
-    Add(Reg, Operand),
+    Add(Operand, Operand),
     /// OP1 = OP1 - OP2
-    Sub(Reg, Operand),
+    Sub(Operand, Operand),
     /// OP1 = OP1 * OP2
-    Mul(Reg, Operand),
-    /// OP1 = [OP1 * OP2]>>N
-    Mulhi(Reg, Operand),
+    Mul(Operand, Operand),
+    /// OP1 = \[OP1 * OP2\]>>N
+    Mulhi(Operand, Operand),
     /// OP1 = OP1 * OP2 (Signed)
-    Imul(Reg, Operand),
-    /// OP1 = [OP1 * OP2]>>N (Signed)
-    Imulhi(Reg, Operand),
-    /// OP1 = [OP2:OP1] / OP3
-    Div(Reg, Operand, Operand),
-    /// OP1 = [OP2:OP1] % OP3
-    Rem(Reg, Operand, Operand),
-    /// OP1 = [OP2:OP1] / OP3 (Signed)
-    Idiv(Reg, Operand, Operand),
-    /// OP1 = [OP2:OP1] % OP3 (Signed)
-    Irem(Reg, Operand, Operand),
+    Imul(Operand, Operand),
+    /// OP1 = \[OP1 * OP2\]>>N (Signed)
+    Imulhi(Operand, Operand),
+    /// OP1 = \[OP2:OP1\] / OP3
+    Div(Operand, Operand, Operand),
+    /// OP1 = \[OP2:OP1\] % OP3
+    Rem(Operand, Operand, Operand),
+    /// OP1 = \[OP2:OP1\] / OP3 (Signed)
+    Idiv(Operand, Operand, Operand),
+    /// OP1 = \[OP2:OP1\] % OP3 (Signed)
+    Irem(Operand, Operand, Operand),
 
     // Bitwise instructions
     /// OP1 = popcnt OP1
-    Popcnt(Reg),
+    Popcnt(Operand),
     /// OP1 = OP1 ? BitScanForward OP1 + 1 : 0
-    Bsf(Reg),
+    Bsf(Operand),
     /// OP1 = OP1 ? BitScanReverse OP1 + 1 : 0
-    Bsr(Reg),
+    Bsr(Operand),
     /// OP1 = ~OP1
-    Not(Reg),
+    Not(Operand),
     /// OP1 >>= OP2
-    Shr(Reg, Operand),
+    Shr(Operand, Operand),
     /// OP1 <<= OP2
-    Shl(Reg, Operand),
+    Shl(Operand, Operand),
     /// OP1 ^= OP2
-    Xor(Reg, Operand),
+    Xor(Operand, Operand),
     /// OP1 |= OP2
-    Or(Reg, Operand),
+    Or(Operand, Operand),
     /// OP1 &= OP2
-    And(Reg, Operand),
+    And(Operand, Operand),
     /// OP1 = (OP1>>OP2) | (OP1<<(N-OP2))
-    Ror(Reg, Operand),
+    Ror(Operand, Operand),
     /// OP1 = (OP1<<OP2) | (OP1>>(N-OP2))
-    Rol(Reg, Operand),
+    Rol(Operand, Operand),
 
     // Conditional instructions
     /// OP1 = OP2 > OP3
-    Tg(Reg, Operand, Operand),
+    Tg(Operand, Operand, Operand),
     /// OP1 = OP2 >= OP3
-    Tge(Reg, Operand, Operand),
+    Tge(Operand, Operand, Operand),
     /// OP1 = OP2 == OP3
-    Te(Reg, Operand, Operand),
+    Te(Operand, Operand, Operand),
     /// OP1 = OP2 != OP3
-    Tne(Reg, Operand, Operand),
+    Tne(Operand, Operand, Operand),
     /// OP1 = OP2 < OP3
-    Tl(Reg, Operand, Operand),
+    Tl(Operand, Operand, Operand),
     /// OP1 = OP2 <= OP3
-    Tle(Reg, Operand, Operand),
+    Tle(Operand, Operand, Operand),
     /// OP1 = OP2 <= OP3
-    Tug(Reg, Operand, Operand),
+    Tug(Operand, Operand, Operand),
     /// OP1 = OP2   u>=  OP3
-    Tuge(Reg, Operand, Operand),
+    Tuge(Operand, Operand, Operand),
     /// OP1 = OP2   u<   OP3
-    Tul(Reg, Operand, Operand),
+    Tul(Operand, Operand, Operand),
     /// OP1 = OP2   u<=  OP3
-    Tule(Reg, Operand, Operand),
+    Tule(Operand, Operand, Operand),
     /// OP1 = OP2 ? OP3 : 0
-    Ifs(Reg, Operand, Operand),
+    Ifs(Operand, Operand, Operand),
 
     // Control flow instructions
     /// Jumps to OP1 ? OP2 : OP3, continues virtual execution
-    Js(Reg, Operand, Operand),
+    Js(Operand, Operand, Operand),
     /// Jumps to OP1, continues virtual execution
     Jmp(Operand),
     /// Jumps to OP1, continues real execution
@@ -385,15 +413,192 @@ enum Op {
     /// Assumes all memory is written to
     Lfence,
     /// Emits the opcode as is to the final instruction stream
-    Vemit(Imm),
+    Vemit(Operand),
     /// Pins the register for read
-    Vpinr(Reg),
+    Vpinr(Operand),
     /// Pins the register for write
-    Vpinw(Reg),
+    Vpinw(Operand),
     /// Pins the memory location for read, with size = OP3
-    Vpinrm(Reg, Imm, Imm),
+    Vpinrm(Operand, Operand, Operand),
     /// Pins the memory location for write, with size = OP3
-    Vpinwm(Reg, Imm, Imm),
+    Vpinwm(Operand, Operand, Operand),
+}
+
+impl Op {
+    /// Name of the operand
+    pub fn name(&self) -> &'static str {
+        match self {
+            Op::Mov(_, _) => "mov",
+            Op::Movsx(_, _) => "movsx",
+            Op::Str(_, _, _) => "str",
+            Op::Ldd(_, _, _) => "ldd",
+            Op::Neg(_) => "neg",
+            Op::Add(_, _) => "add",
+            Op::Sub(_, _) => "sub",
+            Op::Mul(_, _) => "mul",
+            Op::Mulhi(_, _) => "mulhi",
+            Op::Imul(_, _) => "imul",
+            Op::Imulhi(_, _) => "imulhi",
+            Op::Div(_, _, _) => "div",
+            Op::Rem(_, _, _) => "rem",
+            Op::Idiv(_, _, _) => "idiv",
+            Op::Irem(_, _, _) => "irem",
+            Op::Popcnt(_) => "popcnt",
+            Op::Bsf(_) => "bsf",
+            Op::Bsr(_) => "bsr",
+            Op::Not(_) => "not",
+            Op::Shr(_, _) => "shr",
+            Op::Shl(_, _) => "shl",
+            Op::Xor(_, _) => "xor",
+            Op::Or(_, _) => "or",
+            Op::And(_, _) => "and",
+            Op::Ror(_, _) => "ror",
+            Op::Rol(_, _) => "rol",
+            Op::Tg(_, _, _) => "tg",
+            Op::Tge(_, _, _) => "tge",
+            Op::Te(_, _, _) => "te",
+            Op::Tne(_, _, _) => "tne",
+            Op::Tl(_, _, _) => "tl",
+            Op::Tle(_, _, _) => "tle",
+            Op::Tug(_, _, _) => "tug",
+            Op::Tuge(_, _, _) => "tuge",
+            Op::Tul(_, _, _) => "tul",
+            Op::Tule(_, _, _) => "tule",
+            Op::Ifs(_, _, _) => "ifs",
+            Op::Js(_, _, _) => "js",
+            Op::Jmp(_) => "jmp",
+            Op::Vexit(_) => "vexit",
+            Op::Vxcall(_) => "vxcall",
+            Op::Nop => "nop",
+            Op::Sfence => "sfence",
+            Op::Lfence => "lfence",
+            Op::Vemit(_) => "vemit",
+            Op::Vpinr(_) => "vpinr",
+            Op::Vpinw(_) => "vpinw",
+            Op::Vpinrm(_, _, _) => "vpinrm",
+            Op::Vpinwm(_, _, _) => "vpinwm",
+        }
+    }
+
+    /// Operands for operator
+    pub fn operands(&self) -> Vec<&Operand> {
+        match *self {
+            Op::Nop | Op::Sfence | Op::Lfence => vec![],
+            Op::Neg(ref op1)
+            | Op::Popcnt(ref op1)
+            | Op::Bsf(ref op1)
+            | Op::Bsr(ref op1)
+            | Op::Not(ref op1)
+            | Op::Jmp(ref op1)
+            | Op::Vexit(ref op1)
+            | Op::Vxcall(ref op1)
+            | Op::Vemit(ref op1)
+            | Op::Vpinr(ref op1)
+            | Op::Vpinw(ref op1) => vec![op1],
+            Op::Mov(ref op1, ref op2)
+            | Op::Movsx(ref op1, ref op2)
+            | Op::Add(ref op1, ref op2)
+            | Op::Sub(ref op1, ref op2)
+            | Op::Mul(ref op1, ref op2)
+            | Op::Mulhi(ref op1, ref op2)
+            | Op::Imul(ref op1, ref op2)
+            | Op::Imulhi(ref op1, ref op2)
+            | Op::Shr(ref op1, ref op2)
+            | Op::Shl(ref op1, ref op2)
+            | Op::Xor(ref op1, ref op2)
+            | Op::Or(ref op1, ref op2)
+            | Op::And(ref op1, ref op2)
+            | Op::Ror(ref op1, ref op2)
+            | Op::Rol(ref op1, ref op2) => vec![op1, op2],
+            Op::Str(ref op1, ref op2, ref op3)
+            | Op::Ldd(ref op1, ref op2, ref op3)
+            | Op::Div(ref op1, ref op2, ref op3)
+            | Op::Rem(ref op1, ref op2, ref op3)
+            | Op::Idiv(ref op1, ref op2, ref op3)
+            | Op::Irem(ref op1, ref op2, ref op3)
+            | Op::Tg(ref op1, ref op2, ref op3)
+            | Op::Tge(ref op1, ref op2, ref op3)
+            | Op::Te(ref op1, ref op2, ref op3)
+            | Op::Tne(ref op1, ref op2, ref op3)
+            | Op::Tl(ref op1, ref op2, ref op3)
+            | Op::Tle(ref op1, ref op2, ref op3)
+            | Op::Tug(ref op1, ref op2, ref op3)
+            | Op::Tuge(ref op1, ref op2, ref op3)
+            | Op::Tul(ref op1, ref op2, ref op3)
+            | Op::Tule(ref op1, ref op2, ref op3)
+            | Op::Ifs(ref op1, ref op2, ref op3)
+            | Op::Js(ref op1, ref op2, ref op3)
+            | Op::Vpinrm(ref op1, ref op2, ref op3)
+            | Op::Vpinwm(ref op1, ref op2, ref op3) => vec![op1, op2, op3],
+        }
+    }
+
+    /// Mutable operands for operator
+    pub fn operands_mut(&mut self) -> Vec<&mut Operand> {
+        match *self {
+            Op::Nop | Op::Sfence | Op::Lfence => vec![],
+            Op::Neg(ref mut op1)
+            | Op::Popcnt(ref mut op1)
+            | Op::Bsf(ref mut op1)
+            | Op::Bsr(ref mut op1)
+            | Op::Not(ref mut op1)
+            | Op::Jmp(ref mut op1)
+            | Op::Vexit(ref mut op1)
+            | Op::Vxcall(ref mut op1)
+            | Op::Vemit(ref mut op1)
+            | Op::Vpinr(ref mut op1)
+            | Op::Vpinw(ref mut op1) => vec![op1],
+            Op::Mov(ref mut op1, ref mut op2)
+            | Op::Movsx(ref mut op1, ref mut op2)
+            | Op::Add(ref mut op1, ref mut op2)
+            | Op::Sub(ref mut op1, ref mut op2)
+            | Op::Mul(ref mut op1, ref mut op2)
+            | Op::Mulhi(ref mut op1, ref mut op2)
+            | Op::Imul(ref mut op1, ref mut op2)
+            | Op::Imulhi(ref mut op1, ref mut op2)
+            | Op::Shr(ref mut op1, ref mut op2)
+            | Op::Shl(ref mut op1, ref mut op2)
+            | Op::Xor(ref mut op1, ref mut op2)
+            | Op::Or(ref mut op1, ref mut op2)
+            | Op::And(ref mut op1, ref mut op2)
+            | Op::Ror(ref mut op1, ref mut op2)
+            | Op::Rol(ref mut op1, ref mut op2) => vec![op1, op2],
+            Op::Str(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Ldd(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Div(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Rem(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Idiv(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Irem(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tg(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tge(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Te(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tne(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tl(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tle(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tug(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tuge(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tul(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Tule(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Ifs(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Js(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Vpinrm(ref mut op1, ref mut op2, ref mut op3)
+            | Op::Vpinwm(ref mut op1, ref mut op2, ref mut op3) => vec![op1, op2, op3],
+        }
+    }
+
+    /// Returns if the instruction is volatile
+    pub fn is_volatile(&self) -> bool {
+        match self {
+            Op::Sfence
+            | Op::Lfence
+            | Op::Vemit(_)
+            | Op::Vpinr(_)
+            | Op::Vpinw(_)
+            | Op::Vpinrm(_, _, _)
+            | Op::Vpinwm(_, _, _) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Basic block containing a linear sequence of VTIL instructions

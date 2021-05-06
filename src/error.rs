@@ -33,7 +33,7 @@
 use std::{fmt, io, num, str};
 use thiserror::Error;
 
-/// Custom `Error` for VTIL parsing
+/// Custom `Error` for VTIL reading/writing
 #[derive(Error, Debug)]
 pub enum Error {
     /// An error occured during parsing due to a malformed VTIL file
@@ -59,4 +59,12 @@ pub enum Error {
     /// Overflowing during writing
     #[error("Encoding error, value overflowed")]
     TryFromInt(#[from] num::TryFromIntError),
+
+    /// Operand does not have expected type (immediate or register)
+    #[error("Operand type mismatch")]
+    OperandTypeMismatch,
+
+    /// Operator has unexpected operand count
+    #[error("Operand count mismatch")]
+    OperandMismatch,
 }
