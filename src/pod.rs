@@ -588,16 +588,16 @@ impl Op {
 
     /// Returns if the instruction is volatile
     pub fn is_volatile(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Op::Sfence
-            | Op::Lfence
-            | Op::Vemit(_)
-            | Op::Vpinr(_)
-            | Op::Vpinw(_)
-            | Op::Vpinrm(_, _, _)
-            | Op::Vpinwm(_, _, _) => true,
-            _ => false,
-        }
+                | Op::Lfence
+                | Op::Vemit(_)
+                | Op::Vpinr(_)
+                | Op::Vpinw(_)
+                | Op::Vpinrm(_, _, _)
+                | Op::Vpinwm(_, _, _)
+        )
     }
 }
 

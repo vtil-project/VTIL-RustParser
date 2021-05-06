@@ -78,7 +78,8 @@
 #![deny(missing_docs)]
 
 use memmap::MmapOptions;
-use scroll::{Pread, Pwrite};
+use scroll::{ctx::SizeWith, Pread, Pwrite};
+
 use std::fs::File;
 use std::path::Path;
 
@@ -110,7 +111,7 @@ impl VTILReader {
     }
 
     /// Loads VTIL from a `Vec<u8>`
-    pub fn from_vec<B: AsRef<[u8]>>(source: B) -> Result<VTIL> {
+    pub fn from_vec(source: &[u8]) -> Result<VTIL> {
         source.as_ref().pread_with::<VTIL>(0, scroll::LE)
     }
 }
@@ -135,7 +136,8 @@ impl VTIL {
 
     /// Serialize the VTIL container, consuming it
     pub fn into_bytes(self) -> Result<Vec<u8>> {
-        let mut buffer = Vec::<u8>::new();
+        let size = VTIL::size_with(&self);
+        let mut buffer = vec![0; size];
         buffer.pwrite_with::<VTIL>(self, 0, scroll::LE)?;
         Ok(buffer)
     }
