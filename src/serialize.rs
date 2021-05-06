@@ -34,9 +34,8 @@ use scroll::{ctx, Endian, Pread, Pwrite};
 use std::convert::TryInto;
 
 use super::{
-    ArchitectureIdentifier, BasicBlock, Error, Header, Immediate, ImmediateDesc, Instruction,
-    Operand, RegisterDesc, RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip,
-    VTIL,
+    ArchitectureIdentifier, BasicBlock, Error, Header, Imm, Immediate, Instruction, Operand, Reg,
+    RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip, VTIL,
 };
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
@@ -131,7 +130,7 @@ impl ctx::TryIntoCtx<Endian> for Vip {
     }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
+impl<'a> ctx::TryFromCtx<'a, Endian> for Reg {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
@@ -150,7 +149,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
         let bit_offset = source.gread_with::<i32>(offset, endian)?;
 
         Ok((
-            RegisterDesc {
+            Reg {
                 flags,
                 combined_id,
                 bit_count,
@@ -161,7 +160,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RegisterDesc {
     }
 }
 
-impl ctx::TryIntoCtx<Endian> for RegisterDesc {
+impl ctx::TryIntoCtx<Endian> for Reg {
     type Error = Error;
 
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
@@ -181,27 +180,24 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for RoutineConvention {
         let offset = &mut 0;
 
         let volatile_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut volatile_registers =
-            Vec::<RegisterDesc>::with_capacity(volatile_registers_count as usize);
+        let mut volatile_registers = Vec::<Reg>::with_capacity(volatile_registers_count as usize);
         for _ in 0..volatile_registers_count {
             volatile_registers.push(source.gread_with(offset, endian)?);
         }
 
         let param_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut param_registers =
-            Vec::<RegisterDesc>::with_capacity(param_registers_count as usize);
+        let mut param_registers = Vec::<Reg>::with_capacity(param_registers_count as usize);
         for _ in 0..param_registers_count {
             param_registers.push(source.gread_with(offset, endian)?);
         }
 
         let retval_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut retval_registers =
-            Vec::<RegisterDesc>::with_capacity(retval_registers_count as usize);
+        let mut retval_registers = Vec::<Reg>::with_capacity(retval_registers_count as usize);
         for _ in 0..retval_registers_count {
             retval_registers.push(source.gread_with(offset, endian)?);
         }
 
-        let frame_register = source.gread_with::<RegisterDesc>(offset, endian)?;
+        let frame_register = source.gread_with::<Reg>(offset, endian)?;
         let shadow_space = source.gread_with::<u64>(offset, endian)?;
         let purge_stack = source.gread_with::<u8>(offset, endian)? != 0;
 
@@ -227,27 +223,27 @@ impl ctx::TryIntoCtx<Endian> for RoutineConvention {
 
         sink.gwrite::<u32>(self.volatile_registers.len().try_into()?, offset)?;
         for reg in self.volatile_registers {
-            sink.gwrite::<RegisterDesc>(reg, offset)?;
+            sink.gwrite::<Reg>(reg, offset)?;
         }
 
         sink.gwrite::<u32>(self.param_registers.len().try_into()?, offset)?;
         for reg in self.param_registers {
-            sink.gwrite::<RegisterDesc>(reg, offset)?;
+            sink.gwrite::<Reg>(reg, offset)?;
         }
 
         sink.gwrite::<u32>(self.retval_registers.len().try_into()?, offset)?;
         for reg in self.retval_registers {
-            sink.gwrite::<RegisterDesc>(reg, offset)?;
+            sink.gwrite::<Reg>(reg, offset)?;
         }
 
-        sink.gwrite::<RegisterDesc>(self.frame_register, offset)?;
+        sink.gwrite::<Reg>(self.frame_register, offset)?;
         sink.gwrite::<u64>(self.shadow_space, offset)?;
         sink.gwrite::<u8>(self.purge_stack.into(), offset)?;
         Ok(*offset)
     }
 }
 
-impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
+impl<'a> ctx::TryFromCtx<'a, Endian> for Imm {
     type Error = Error;
 
     fn try_from_ctx(source: &'a [u8], endian: Endian) -> Result<(Self, usize)> {
@@ -257,7 +253,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
         let bit_count = source.gread_with::<u32>(offset, endian)?;
 
         Ok((
-            ImmediateDesc {
+            Imm {
                 value: Immediate { u64: value },
                 bit_count,
             },
@@ -266,7 +262,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for ImmediateDesc {
     }
 }
 
-impl ctx::TryIntoCtx<Endian> for ImmediateDesc {
+impl ctx::TryIntoCtx<Endian> for Imm {
     type Error = Error;
 
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
@@ -286,8 +282,8 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for Operand {
         let sp_index = source.gread_with::<u32>(offset, endian)?;
         Ok((
             match sp_index {
-                0 => Operand::Imm(source.gread_with::<ImmediateDesc>(offset, endian)?),
-                1 => Operand::Reg(source.gread_with::<RegisterDesc>(offset, endian)?),
+                0 => Operand::Imm(source.gread_with::<Imm>(offset, endian)?),
+                1 => Operand::Reg(source.gread_with::<Reg>(offset, endian)?),
                 i => return Err(Error::Malformed(format!("Invalid operand: {:#x}", i))),
             },
             *offset,
@@ -303,11 +299,11 @@ impl ctx::TryIntoCtx<Endian> for Operand {
         match self {
             Operand::Imm(i) => {
                 sink.gwrite::<u32>(0, offset)?;
-                sink.gwrite::<ImmediateDesc>(i, offset)?;
+                sink.gwrite::<Imm>(i, offset)?;
             }
             Operand::Reg(r) => {
                 sink.gwrite::<u32>(1, offset)?;
-                sink.gwrite::<RegisterDesc>(r, offset)?;
+                sink.gwrite::<Reg>(r, offset)?;
             }
         }
         Ok(*offset)
