@@ -15,6 +15,7 @@ scroll = "0.10.2"
 memmap = "0.7.0"
 bitflags = "1"
 thiserror = "1"
+serde = { version = "1", optional = true, features = ["derive"] }
 
 [badges]
 travis-ci = { repository = "vtil-project/VTIL-RustParser", branch = "main" }

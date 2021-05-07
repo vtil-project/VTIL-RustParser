@@ -1,7 +1,10 @@
 use crate::{arch_info, Error, Result};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{convert::TryInto, fmt};
 
 /// Architecture for IL inside of VTIL routines
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ArchitectureIdentifier {
     /// AMD64 (otherwise known as x86_64) architecture
@@ -13,6 +16,7 @@ pub enum ArchitectureIdentifier {
 }
 
 /// Header containing metadata regarding the VTIL container
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct Header {
     /// The architecture used by the VTIL routine
@@ -20,12 +24,14 @@ pub struct Header {
 }
 
 /// VTIL instruction pointer
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct Vip(pub u64);
 
 bitflags! {
     /// Flags describing register properties
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct RegisterFlags: u64 {
         /// Default value if no flags set. Read/write pure virtual register that
         /// is not a stack pointer or flags
@@ -55,6 +61,7 @@ bitflags! {
 }
 
 /// Describes a VTIL register in an operand
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub struct Reg {
     /// Flags describing the register
@@ -158,6 +165,7 @@ impl fmt::Display for Reg {
 }
 
 /// Routine calling convention information and associated metadata
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct RoutineConvention {
     /// List of registers that may change as a result of the routine execution but
@@ -201,6 +209,28 @@ impl Immediate {
     }
 }
 
+#[cfg(feature = "serde")]
+impl Serialize for Immediate {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i64(self.i64())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Immediate {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Immediate, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Immediate {
+            i64: i64::deserialize(deserializer)?,
+        })
+    }
+}
+
 impl fmt::Debug for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Immediate")
@@ -211,6 +241,7 @@ impl fmt::Debug for Immediate {
 }
 
 /// Describes a VTIL immediate value in an operand
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub struct Imm {
     pub(crate) value: Immediate,
@@ -259,6 +290,7 @@ impl Imm {
 }
 
 /// VTIL instruction operand
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum Operand {
     /// Immediate operand containing a sized immediate value
@@ -296,6 +328,7 @@ where
 }
 
 /// VTIL instruction and associated metadata
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct Instruction {
     /// Instruction operation and operators
@@ -311,6 +344,7 @@ pub struct Instruction {
 }
 
 /// VTIL operator and operands
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub enum Op {
     // Data/Memory instructions
@@ -602,6 +636,7 @@ impl Op {
 }
 
 /// Basic block containing a linear sequence of VTIL instructions
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct BasicBlock {
     /// The virtual instruction pointer at entry
@@ -624,6 +659,7 @@ pub struct BasicBlock {
 pub type SubroutineConvention = RoutineConvention;
 
 /// VTIL container
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct VTIL {
     /// Header containing metadata about the VTIL container
