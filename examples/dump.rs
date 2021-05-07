@@ -40,9 +40,9 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
         )?;
     }
 
-    write!(buffer, "{:<8} ", instr.name)?;
+    write!(buffer, "{:<8} ", instr.op.name())?;
 
-    for op in &instr.operands {
+    for op in instr.op.operands() {
         match op {
             Operand::Reg(r) => {
                 write!(buffer, "{:<12}", format!("{}", r))?;

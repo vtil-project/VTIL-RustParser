@@ -52,23 +52,20 @@
 //! For a more complex example, iterating over IL instructions:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, Operand, RegisterFlags};
+//! use vtil_parser::{VTILReader, Op, Operand, Reg, Imm, RegisterFlags};
 //!
 //! # fn main() -> Result<()> {
 //! let routine = VTILReader::from_path("resources/big.vtil")?;
 //!
 //! for basic_block in routine.explored_blocks.iter().take(1) {
 //!     for instr in basic_block.instructions.iter().take(1) {
-//!         assert_eq!(instr.name, "ldd");
-//!         assert_eq!(instr.operands.len(), 3);
-//!
-//!         if let Operand::Reg(reg) = &instr.operands[1] {
-//!             assert!(reg.flags.contains(RegisterFlags::PHYSICAL));
-//!         } else { unreachable!() }
-//!
-//!         if let Operand::Imm(imm) = &instr.operands[2] {
-//!             assert_eq!(imm.i64(), 0);
-//!         } else { unreachable!() }
+//!         match &instr.op {
+//!             Op::Ldd(_, Operand::Reg(op2), Operand::Imm(op3)) => {
+//!                 assert!(op2.flags.contains(RegisterFlags::PHYSICAL));
+//!                 assert!(op3.i64() == 0);
+//!             }
+//!             _ => assert!(false)
+//!         }
 //!
 //!         assert_eq!(instr.vip.0, 0x9b833);
 //!     }
@@ -81,7 +78,8 @@
 #![deny(missing_docs)]
 
 use memmap::MmapOptions;
-use scroll::{Pread, Pwrite};
+use scroll::{ctx::SizeWith, Pread, Pwrite};
+
 use std::fs::File;
 use std::path::Path;
 
@@ -113,7 +111,7 @@ impl VTILReader {
     }
 
     /// Loads VTIL from a `Vec<u8>`
-    pub fn from_vec<B: AsRef<[u8]>>(source: B) -> Result<VTIL> {
+    pub fn from_vec(source: &[u8]) -> Result<VTIL> {
         source.as_ref().pread_with::<VTIL>(0, scroll::LE)
     }
 }
@@ -138,7 +136,8 @@ impl VTIL {
 
     /// Serialize the VTIL container, consuming it
     pub fn into_bytes(self) -> Result<Vec<u8>> {
-        let mut buffer = Vec::<u8>::new();
+        let size = VTIL::size_with(&self);
+        let mut buffer = vec![0; size];
         buffer.pwrite_with::<VTIL>(self, 0, scroll::LE)?;
         Ok(buffer)
     }
