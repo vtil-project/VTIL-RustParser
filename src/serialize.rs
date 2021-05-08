@@ -176,7 +176,9 @@ impl ctx::TryFromCtx<'_, Endian> for Reg {
     fn try_from_ctx(source: &[u8], endian: Endian) -> Result<(Self, usize)> {
         let offset = &mut 0;
 
-        let flags = RegisterFlags::from_bits_truncate(source.gread_with::<u64>(offset, endian)?);
+        let flags = unsafe {
+            RegisterFlags::from_bits_unchecked(source.gread_with::<u64>(offset, endian)?)
+        };
 
         let combined_id = source.gread_with::<u64>(offset, endian)?;
         if combined_id & (0xff << 56) > 2 {
@@ -1123,5 +1125,20 @@ impl ctx::TryIntoCtx<Endian> for VTIL {
         }
 
         Ok(*offset)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Result;
+
+    #[test]
+    fn round_trip() -> Result<()> {
+        use crate::VTILReader;
+        let data = std::fs::read("resources/big.vtil")?;
+        let routine = VTILReader::from_vec(&data)?;
+        let rounded_data = routine.into_bytes()?;
+        assert_eq!(data, rounded_data);
+        Ok(())
     }
 }
