@@ -120,13 +120,30 @@ impl VTIL {
     /// Build a new VTIL container
     pub fn new(
         arch_id: ArchitectureIdentifier,
-        vip: Vip,
-        routine_convention: RoutineConvention,
-        subroutine_convention: SubroutineConvention,
     ) -> VTIL {
+        let (routine_convention, subroutine_convention) = match arch_id {
+            ArchitectureIdentifier::Virtual => {
+                let routine_convention = RoutineConvention {
+                    volatile_registers: vec![],
+                    param_registers: vec![],
+                    retval_registers: vec![],
+                    // Not used, so it doesn't matter
+                    frame_register: Reg {
+                        flags: RegisterFlags::VIRTUAL,
+                        combined_id: 0,
+                        bit_count: 0,
+                        bit_offset: 0,
+                    },
+                    shadow_space: 0,
+                    purge_stack: true,
+                };
+                (routine_convention.clone(), routine_convention)
+            }
+            _ => unimplemented!(),
+        };
         VTIL {
             header: Header { arch_id },
-            vip,
+            vip: Vip(0),
             routine_convention,
             subroutine_convention,
             spec_subroutine_conventions: vec![],
