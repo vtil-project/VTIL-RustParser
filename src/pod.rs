@@ -673,10 +673,10 @@ impl BasicBlock {
 /// Alias for [`RoutineConvention`] for consistent naming
 pub type SubroutineConvention = RoutineConvention;
 
-/// VTIL container
+/// VTIL routine container
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
-pub struct VTIL {
+pub struct Routine {
     /// Header containing metadata about the VTIL container
     pub header: Header,
     /// The entry virtual instruction pointer for this VTIL routine

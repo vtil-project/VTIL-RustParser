@@ -13,7 +13,7 @@
 //
 
 use std::{env, fmt::Write};
-use vtil_parser::{BasicBlock, Instruction, Operand, Result, VTILReader};
+use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine};
 
 pub fn dump_instr(instr: &Instruction) -> Result<String> {
     let mut buffer = String::new();
@@ -69,7 +69,7 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
 
 fn main() -> Result<()> {
     let mut argv = env::args();
-    let routine = VTILReader::from_path(argv.nth(1).unwrap())?;
+    let routine = Routine::from_path(argv.nth(1).unwrap())?;
     dump_routine(&routine.explored_blocks);
     Ok(())
 }

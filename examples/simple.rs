@@ -13,13 +13,13 @@
 //
 
 use std::env;
-use vtil_parser::{Result, VTILReader};
+use vtil_parser::{Result, Routine};
 
 fn main() -> Result<()> {
     let mut argv = env::args();
-    let routine = VTILReader::from_path(argv.nth(1).unwrap())?;
+    let routine = Routine::from_path(argv.nth(1).unwrap())?;
     println!(
-        "The architecture of this VTIL file is: {:?}",
+        "The architecture of this VTIL routine is: {:?}",
         routine.header.arch_id
     );
     Ok(())

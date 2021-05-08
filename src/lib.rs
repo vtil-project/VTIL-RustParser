@@ -37,13 +37,13 @@
 //! on the main GitHub page.
 //!
 //! # Examples
-//! For a simple example of loading a VTIL file and reading out some basic data:
+//! For a simple example of loading a VTIL routine and reading out some basic data:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, ArchitectureIdentifier};
+//! use vtil_parser::{Routine, ArchitectureIdentifier};
 //!
 //! # fn main() -> Result<()> {
-//! let routine = VTILReader::from_path("resources/big.vtil")?;
+//! let routine = Routine::from_path("resources/big.vtil")?;
 //! assert_eq!(routine.header.arch_id, ArchitectureIdentifier::Amd64);
 //! # Ok(())
 //! # }
@@ -52,10 +52,10 @@
 //! For a more complex example, iterating over IL instructions:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, Op, Operand, RegisterDesc, ImmediateDesc, RegisterFlags};
+//! use vtil_parser::{Routine, Op, Operand, RegisterDesc, ImmediateDesc, RegisterFlags};
 //!
 //! # fn main() -> Result<()> {
-//! let routine = VTILReader::from_path("resources/big.vtil")?;
+//! let routine = Routine::from_path("resources/big.vtil")?;
 //!
 //! for basic_block in routine.explored_blocks.iter().take(1) {
 //!     for instr in basic_block.instructions.iter().take(1) {
@@ -100,27 +100,10 @@ pub use serialize::*;
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
 
-/// Reader for VTIL containers
-pub struct VTILReader;
-
-impl VTILReader {
-    /// Tries to load VTIL from the given path
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<VTIL> {
-        let source = Box::new(unsafe { MmapOptions::new().map(&File::open(path.as_ref())?)? });
-        source.pread_with::<VTIL>(0, scroll::LE)
-    }
-
-    /// Loads VTIL from a `Vec<u8>`
-    pub fn from_vec(source: &[u8]) -> Result<VTIL> {
-        source.as_ref().pread_with::<VTIL>(0, scroll::LE)
-    }
-}
-
-impl VTIL {
-    /// Build a new VTIL container
-    pub fn new(
-        arch_id: ArchitectureIdentifier,
-    ) -> VTIL {
+/// VTIL routine container
+impl Routine {
+    /// Build a new VTIL routine container
+    pub fn new(arch_id: ArchitectureIdentifier) -> Routine {
         let (routine_convention, subroutine_convention) = match arch_id {
             ArchitectureIdentifier::Virtual => {
                 let routine_convention = RoutineConvention {
@@ -141,7 +124,7 @@ impl VTIL {
             }
             _ => unimplemented!(),
         };
-        VTIL {
+        Routine {
             header: Header { arch_id },
             vip: Vip(0),
             routine_convention,
@@ -151,11 +134,22 @@ impl VTIL {
         }
     }
 
-    /// Serialize the VTIL container, consuming it
+    /// Tries to load VTIL routine from the given path
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Routine> {
+        let source = Box::new(unsafe { MmapOptions::new().map(&File::open(path.as_ref())?)? });
+        source.pread_with::<Routine>(0, scroll::LE)
+    }
+
+    /// Loads VTIL routine from a `Vec<u8>`
+    pub fn from_vec(source: &[u8]) -> Result<Routine> {
+        source.as_ref().pread_with::<Routine>(0, scroll::LE)
+    }
+
+    /// Serialize the VTIL routine container, consuming it
     pub fn into_bytes(self) -> Result<Vec<u8>> {
-        let size = VTIL::size_with(&self);
+        let size = Routine::size_with(&self);
         let mut buffer = vec![0; size];
-        buffer.pwrite_with::<VTIL>(self, 0, scroll::LE)?;
+        buffer.pwrite_with::<Routine>(self, 0, scroll::LE)?;
         Ok(buffer)
     }
 }
