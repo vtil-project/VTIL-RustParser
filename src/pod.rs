@@ -166,7 +166,7 @@ impl fmt::Display for Reg {
 
 /// Routine calling convention information and associated metadata
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RoutineConvention {
     /// List of registers that may change as a result of the routine execution but
     /// will be considered trashed
@@ -653,6 +653,21 @@ pub struct BasicBlock {
     pub prev_vip: Vec<Vip>,
     /// Successor basic block entrypoint(s)
     pub next_vip: Vec<Vip>,
+}
+
+impl BasicBlock {
+    /// Allocate a temporary register for this basic block. This register must
+    /// not be assumed to be valid for any other block
+    pub fn tmp(&mut self, bit_count: i32) -> Reg {
+        let reg = Reg {
+            flags: RegisterFlags::LOCAL,
+            combined_id: self.last_temporary_index as u64,
+            bit_count,
+            bit_offset: 0,
+        };
+        self.last_temporary_index += 1;
+        reg
+    }
 }
 
 /// Alias for [`RoutineConvention`] for consistent naming
