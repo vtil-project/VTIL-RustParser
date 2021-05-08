@@ -44,10 +44,10 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
 
     for op in instr.op.operands() {
         match op {
-            Operand::Reg(r) => {
+            Operand::RegisterDesc(r) => {
                 write!(buffer, "{:<12}", format!("{}", r))?;
             }
-            Operand::Imm(i) => {
+            Operand::ImmediateDesc(i) => {
                 write!(buffer, "{:<#12x}", i.i64())?;
             }
         }

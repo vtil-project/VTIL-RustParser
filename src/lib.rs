@@ -52,7 +52,7 @@
 //! For a more complex example, iterating over IL instructions:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, Op, Operand, Reg, Imm, RegisterFlags};
+//! use vtil_parser::{VTILReader, Op, Operand, RegisterDesc, ImmediateDesc, RegisterFlags};
 //!
 //! # fn main() -> Result<()> {
 //! let routine = VTILReader::from_path("resources/big.vtil")?;
@@ -60,7 +60,7 @@
 //! for basic_block in routine.explored_blocks.iter().take(1) {
 //!     for instr in basic_block.instructions.iter().take(1) {
 //!         match &instr.op {
-//!             Op::Ldd(_, Operand::Reg(op2), Operand::Imm(op3)) => {
+//!             Op::Ldd(_, Operand::RegisterDesc(op2), Operand::ImmediateDesc(op3)) => {
 //!                 assert!(op2.flags.contains(RegisterFlags::PHYSICAL));
 //!                 assert!(op3.i64() == 0);
 //!             }
@@ -128,7 +128,7 @@ impl VTIL {
                     param_registers: vec![],
                     retval_registers: vec![],
                     // Not used, so it doesn't matter
-                    frame_register: Reg {
+                    frame_register: RegisterDesc {
                         flags: RegisterFlags::VIRTUAL,
                         combined_id: 0,
                         bit_count: 0,

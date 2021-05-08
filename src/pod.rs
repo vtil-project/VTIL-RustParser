@@ -63,10 +63,10 @@ bitflags! {
 /// Describes a VTIL register in an operand
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
-pub struct Reg {
+pub struct RegisterDesc {
     /// Flags describing the register
     pub flags: RegisterFlags,
-    /// Identifier for this register, use [`Reg::local_id`]
+    /// Identifier for this register, use [`RegisterDesc::local_id`]
     pub combined_id: u64,
     /// The bit count of this register (e.g.: 32)
     pub bit_count: i32,
@@ -74,7 +74,7 @@ pub struct Reg {
     pub bit_offset: i32,
 }
 
-impl Reg {
+impl RegisterDesc {
     /// Local identifier that is intentionally unique to this register
     pub fn local_id(&self) -> u64 {
         self.combined_id & !(0xff << 56)
@@ -91,7 +91,7 @@ impl Reg {
     }
 }
 
-impl fmt::Display for Reg {
+impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut prefix = String::new();
 
@@ -170,15 +170,15 @@ impl fmt::Display for Reg {
 pub struct RoutineConvention {
     /// List of registers that may change as a result of the routine execution but
     /// will be considered trashed
-    pub volatile_registers: Vec<Reg>,
+    pub volatile_registers: Vec<RegisterDesc>,
     /// List of regsiters that this routine wlil read from as a way of taking arguments
     /// * Additional arguments will be passed at `[$sp + shadow_space + n * 8]`
-    pub param_registers: Vec<Reg>,
+    pub param_registers: Vec<RegisterDesc>,
     /// List of registers that are used to store the return value of the routine and
     /// thus will change during routine execution but must be considered "used" by return
-    pub retval_registers: Vec<Reg>,
+    pub retval_registers: Vec<RegisterDesc>,
     /// Register that is generally used to store the stack frame if relevant
-    pub frame_register: Reg,
+    pub frame_register: RegisterDesc,
     /// Size of the shadow space
     pub shadow_space: u64,
     /// Purges any writes to stack that will be end up below the final stack pointer
@@ -243,26 +243,26 @@ impl fmt::Debug for Immediate {
 /// Describes a VTIL immediate value in an operand
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
-pub struct Imm {
+pub struct ImmediateDesc {
     pub(crate) value: Immediate,
     /// The bit count of this register (e.g.: 32)
     pub bit_count: u32,
 }
 
-impl Imm {
+impl ImmediateDesc {
     /// Immediate from a `u64`
-    pub fn new<T: Into<u64>>(value: T, bit_count: u32) -> Imm {
+    pub fn new<T: Into<u64>>(value: T, bit_count: u32) -> ImmediateDesc {
         assert!(bit_count % 8 == 0);
-        Imm {
+        ImmediateDesc {
             value: Immediate { u64: value.into() },
             bit_count,
         }
     }
 
     /// Immediate from an `i64`
-    pub fn new_signed<T: Into<i64>>(value: T, bit_count: u32) -> Imm {
+    pub fn new_signed<T: Into<i64>>(value: T, bit_count: u32) -> ImmediateDesc {
         assert!(bit_count % 8 == 0);
-        Imm {
+        ImmediateDesc {
             value: Immediate { i64: value.into() },
             bit_count,
         }
@@ -294,34 +294,34 @@ impl Imm {
 #[derive(Debug, Clone, Copy)]
 pub enum Operand {
     /// Immediate operand containing a sized immediate value
-    Imm(Imm),
+    ImmediateDesc(ImmediateDesc),
     /// Register operand containing a register description
-    Reg(Reg),
+    RegisterDesc(RegisterDesc),
 }
 
-impl<'a, 'b> TryInto<&'b Imm> for &'a Operand
+impl<'a, 'b> TryInto<&'b ImmediateDesc> for &'a Operand
 where
     'a: 'b,
 {
     type Error = Error;
 
-    fn try_into(self) -> Result<&'a Imm> {
+    fn try_into(self) -> Result<&'a ImmediateDesc> {
         match self {
-            Operand::Imm(ref i) => Ok(i),
+            Operand::ImmediateDesc(ref i) => Ok(i),
             _ => Err(Error::OperandTypeMismatch),
         }
     }
 }
 
-impl<'a, 'b> TryInto<&'b Reg> for &'a Operand
+impl<'a, 'b> TryInto<&'b RegisterDesc> for &'a Operand
 where
     'a: 'b,
 {
     type Error = Error;
 
-    fn try_into(self) -> Result<&'a Reg> {
+    fn try_into(self) -> Result<&'a RegisterDesc> {
         match self {
-            Operand::Reg(r) => Ok(r),
+            Operand::RegisterDesc(r) => Ok(r),
             _ => Err(Error::OperandTypeMismatch),
         }
     }
@@ -658,8 +658,8 @@ pub struct BasicBlock {
 impl BasicBlock {
     /// Allocate a temporary register for this basic block. This register must
     /// not be assumed to be valid for any other block
-    pub fn tmp(&mut self, bit_count: i32) -> Reg {
-        let reg = Reg {
+    pub fn tmp(&mut self, bit_count: i32) -> RegisterDesc {
+        let reg = RegisterDesc {
             flags: RegisterFlags::LOCAL,
             combined_id: self.last_temporary_index as u64,
             bit_count,
