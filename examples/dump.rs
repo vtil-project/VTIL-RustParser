@@ -49,7 +49,11 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
                 write!(buffer, "{:<12}", format!("{}", r))?;
             }
             Operand::ImmediateDesc(i) => {
-                write!(buffer, "{:<#12x}", i.i64())?;
+                if i.i64() < 0 {
+                    write!(buffer, "-{:<#12x}", -i.i64())?;
+                } else {
+                    write!(buffer, "{:<#12x}", i.i64())?;
+                }
             }
         }
     }
@@ -60,7 +64,12 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
 fn dump_routine(basic_blocks: Values<Vip, BasicBlock>) {
     for basic_block in basic_blocks {
         println!("Entry point VIP:       {:#x}", basic_block.vip.0);
-        println!("Stack pointer:         {:x}", basic_block.sp_offset);
+        print!("Stack pointer:         ");
+        if basic_block.sp_offset < 0 {
+            println!("-{:#x}", -basic_block.sp_offset)
+        } else {
+            println!("{:#x}", basic_block.sp_offset)
+        }
 
         for instr in &basic_block.instructions {
             println!("{}", dump_instr(instr).unwrap());

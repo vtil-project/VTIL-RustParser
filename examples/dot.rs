@@ -49,7 +49,11 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
                 write!(buffer, "{:<12}", format!("{}", r))?;
             }
             Operand::ImmediateDesc(i) => {
-                write!(buffer, "{:<#12x}", i.i64())?;
+                if i.i64() < 0 {
+                    write!(buffer, "-{:<#12x}", -i.i64())?;
+                } else {
+                    write!(buffer, "{:<#12x}", i.i64())?;
+                }
             }
         }
     }
