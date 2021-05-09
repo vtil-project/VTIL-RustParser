@@ -8,7 +8,7 @@ pub struct InstructionBuilder<'a> {
 // Helper for inserting instructions with no associated metadata
 fn insert_instr(basic_block: &mut BasicBlock, op: Op) {
     basic_block.instructions.push(Instruction {
-        op: op,
+        op,
         vip: Vip::invalid(),
         sp_offset: 0,
         sp_index: 0,

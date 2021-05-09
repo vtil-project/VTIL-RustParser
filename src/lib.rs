@@ -75,6 +75,7 @@
 //! ```
 
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::useless_conversion)]
 #![deny(missing_docs)]
 
 use memmap::MmapOptions;
@@ -143,7 +144,7 @@ impl Routine {
     pub fn create_block(&mut self, vip: Vip) -> Option<&mut BasicBlock> {
         if !self.explored_blocks.contains_key(&vip) {
             let basic_block = BasicBlock {
-                vip: vip,
+                vip,
                 sp_offset: 0,
                 sp_index: 0,
                 last_temporary_index: 0,

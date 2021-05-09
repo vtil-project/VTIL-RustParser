@@ -1,5 +1,5 @@
 use vtil_parser::{
-    ArchitectureIdentifier, ImmediateDesc, InstructionBuilder, Operand, Result, Routine, Vip,
+    ArchitectureIdentifier, ImmediateDesc, InstructionBuilder, Result, Routine, Vip,
 };
 
 fn main() -> Result<()> {

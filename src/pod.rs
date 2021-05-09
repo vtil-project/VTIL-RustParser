@@ -99,12 +99,6 @@ impl RegisterDesc {
     }
 }
 
-impl Into<Operand> for RegisterDesc {
-    fn into(self) -> Operand {
-        Operand::RegisterDesc(self)
-    }
-}
-
 impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut prefix = String::new();
@@ -303,12 +297,6 @@ impl ImmediateDesc {
     }
 }
 
-impl Into<Operand> for ImmediateDesc {
-    fn into(self) -> Operand {
-        Operand::ImmediateDesc(self)
-    }
-}
-
 /// VTIL instruction operand
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
@@ -317,6 +305,18 @@ pub enum Operand {
     ImmediateDesc(ImmediateDesc),
     /// Register operand containing a register description
     RegisterDesc(RegisterDesc),
+}
+
+impl From<RegisterDesc> for Operand {
+    fn from(register_desc: RegisterDesc) -> Self {
+        Operand::RegisterDesc(register_desc)
+    }
+}
+
+impl From<ImmediateDesc> for Operand {
+    fn from(immediate_desc: ImmediateDesc) -> Self {
+        Operand::ImmediateDesc(immediate_desc)
+    }
 }
 
 impl<'a, 'b> TryInto<&'b ImmediateDesc> for &'a Operand
