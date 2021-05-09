@@ -10,6 +10,9 @@ license = "BSD-3-Clause"
 keywords = ["parser", "vtil"]
 exclude = ["/resources"]
 
+[features]
+serde-1 = ["serde", "indexmap/serde-1"]
+
 [dependencies]
 scroll = "0.10.2"
 memmap = "0.7.0"
