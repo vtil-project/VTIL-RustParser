@@ -1,4 +1,5 @@
 use crate::{arch_info, Error, Result};
+use indexmap::map::IndexMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{convert::TryInto, fmt};
@@ -25,9 +26,16 @@ pub struct Header {
 
 /// VTIL instruction pointer
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Vip(pub u64);
+
+impl Vip {
+    /// Invalid instruction pointer, unassociated with [`BasicBlock`]
+    pub fn invalid() -> Vip {
+        Vip(!0)
+    }
+}
 
 bitflags! {
     /// Flags describing register properties
@@ -88,6 +96,12 @@ impl RegisterDesc {
             2 => ArchitectureIdentifier::Virtual,
             _ => unreachable!(),
         }
+    }
+}
+
+impl Into<Operand> for RegisterDesc {
+    fn into(self) -> Operand {
+        Operand::RegisterDesc(self)
     }
 }
 
@@ -286,6 +300,12 @@ impl ImmediateDesc {
     /// Set the value of the underlying immediate as an `i64`
     pub fn set_i64(&mut self, imm: i64) {
         self.value.set_i64(imm);
+    }
+}
+
+impl Into<Operand> for ImmediateDesc {
+    fn into(self) -> Operand {
+        Operand::ImmediateDesc(self)
     }
 }
 
@@ -656,8 +676,7 @@ pub struct BasicBlock {
 }
 
 impl BasicBlock {
-    /// Allocate a temporary register for this basic block. This register must
-    /// not be assumed to be valid for any other block
+    /// Allocate a temporary register for this basic block
     pub fn tmp(&mut self, bit_count: i32) -> RegisterDesc {
         let reg = RegisterDesc {
             flags: RegisterFlags::LOCAL,
@@ -688,5 +707,5 @@ pub struct Routine {
     /// All special subroutine calling conventions in the top-level VTIL routine
     pub spec_subroutine_conventions: Vec<SubroutineConvention>,
     /// Reachable [`BasicBlock`]s generated during a code-discovery analysis pass
-    pub explored_blocks: Vec<BasicBlock>,
+    pub explored_blocks: IndexMap<Vip, BasicBlock>,
 }

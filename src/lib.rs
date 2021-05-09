@@ -57,7 +57,7 @@
 //! # fn main() -> Result<()> {
 //! let routine = Routine::from_path("resources/big.vtil")?;
 //!
-//! for basic_block in routine.explored_blocks.iter().take(1) {
+//! for (_, basic_block) in routine.explored_blocks.iter().take(1) {
 //!     for instr in basic_block.instructions.iter().take(1) {
 //!         match &instr.op {
 //!             Op::Ldd(_, Operand::RegisterDesc(op2), Operand::ImmediateDesc(op3)) => {
@@ -80,6 +80,7 @@
 use memmap::MmapOptions;
 use scroll::{ctx::SizeWith, Pread, Pwrite};
 
+use indexmap::map::IndexMap;
 use std::fs::File;
 use std::path::Path;
 
@@ -96,6 +97,9 @@ pub use pod::*;
 
 mod serialize;
 pub use serialize::*;
+
+mod instr_builder;
+pub use instr_builder::*;
 
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
@@ -130,8 +134,34 @@ impl Routine {
             routine_convention,
             subroutine_convention,
             spec_subroutine_conventions: vec![],
-            explored_blocks: vec![],
+            explored_blocks: IndexMap::new(),
         }
+    }
+
+    /// Tries to create a [`BasicBlock`], returns `None` if a block already
+    /// exists at the given address
+    pub fn create_block(&mut self, vip: Vip) -> Option<&mut BasicBlock> {
+        if !self.explored_blocks.contains_key(&vip) {
+            let basic_block = BasicBlock {
+                vip: vip,
+                sp_offset: 0,
+                sp_index: 0,
+                last_temporary_index: 0,
+                instructions: vec![],
+                prev_vip: vec![],
+                next_vip: vec![],
+            };
+
+            self.explored_blocks.insert(vip, basic_block);
+            Some(self.explored_blocks.get_mut(&vip).unwrap())
+        } else {
+            None
+        }
+    }
+
+    /// Tries to remove a [`BasicBlock`] from the [`Routine`]
+    pub fn remove_block(&mut self, vip: Vip) -> Option<BasicBlock> {
+        self.explored_blocks.remove(&vip)
     }
 
     /// Tries to load VTIL routine from the given path

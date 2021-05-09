@@ -12,8 +12,9 @@
 // OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
+use indexmap::map::Values;
 use std::{env, fmt::Write};
-use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine};
+use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine, Vip};
 
 pub fn dump_instr(instr: &Instruction) -> Result<String> {
     let mut buffer = String::new();
@@ -65,7 +66,7 @@ fn escape(data: String) -> String {
         .replace("|", "\\|")
 }
 
-fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
+fn dump_routine(basic_blocks: Values<Vip, BasicBlock>) {
     println!("digraph G {{");
 
     for basic_block in basic_blocks {
@@ -118,6 +119,6 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
 fn main() -> Result<()> {
     let mut argv = env::args();
     let routine = Routine::from_path(argv.nth(1).unwrap())?;
-    dump_routine(&routine.explored_blocks);
+    dump_routine(routine.explored_blocks.values());
     Ok(())
 }

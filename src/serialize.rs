@@ -30,6 +30,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+use indexmap::map::IndexMap;
 use scroll::{
     ctx::{self, SizeWith},
     Endian, Pread, Pwrite,
@@ -1063,7 +1064,7 @@ impl ctx::SizeWith<Routine> for Routine {
         }
 
         size += size_of::<u32>();
-        for basic_block in &routine.explored_blocks {
+        for basic_block in routine.explored_blocks.values() {
             size += BasicBlock::size_with(basic_block);
         }
         size
@@ -1089,9 +1090,10 @@ impl ctx::TryFromCtx<'_, Endian> for Routine {
         }
 
         let explored_blocks_count = source.gread_with::<u32>(offset, endian)?;
-        let mut explored_blocks = Vec::<BasicBlock>::with_capacity(explored_blocks_count as usize);
+        let mut explored_blocks = IndexMap::new();
         for _ in 0..explored_blocks_count {
-            explored_blocks.push(source.gread_with(offset, endian)?);
+            let basic_block = source.gread_with::<BasicBlock>(offset, endian)?;
+            explored_blocks.insert(basic_block.vip, basic_block);
         }
 
         let routine = Routine {
@@ -1124,7 +1126,7 @@ impl ctx::TryIntoCtx<Endian> for Routine {
         }
 
         sink.gwrite::<u32>(self.explored_blocks.len().try_into()?, offset)?;
-        for basic_block in self.explored_blocks {
+        for (_, basic_block) in self.explored_blocks.into_iter() {
             sink.gwrite::<BasicBlock>(basic_block, offset)?;
         }
 
