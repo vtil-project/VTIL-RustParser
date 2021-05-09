@@ -30,6 +30,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
+use indexmap::map::IndexMap;
 use scroll::{
     ctx::{self, SizeWith},
     Endian, Pread, Pwrite,
@@ -38,8 +39,9 @@ use std::convert::TryInto;
 use std::mem::size_of;
 
 use super::{
-    ArchitectureIdentifier, BasicBlock, Error, Header, Imm, Immediate, Instruction, Op, Operand,
-    Reg, RegisterFlags, Result, RoutineConvention, SubroutineConvention, Vip, VTIL,
+    ArchitectureIdentifier, BasicBlock, Error, Header, Immediate, ImmediateDesc, Instruction, Op,
+    Operand, RegisterDesc, RegisterFlags, Result, Routine, RoutineConvention, SubroutineConvention,
+    Vip,
 };
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
@@ -159,8 +161,8 @@ impl ctx::TryIntoCtx<Endian> for Vip {
     }
 }
 
-impl ctx::SizeWith<Reg> for Reg {
-    fn size_with(_reg: &Reg) -> usize {
+impl ctx::SizeWith<RegisterDesc> for RegisterDesc {
+    fn size_with(_reg: &RegisterDesc) -> usize {
         let mut size = 0;
         size += size_of::<u64>();
         size += size_of::<u64>();
@@ -170,7 +172,7 @@ impl ctx::SizeWith<Reg> for Reg {
     }
 }
 
-impl ctx::TryFromCtx<'_, Endian> for Reg {
+impl ctx::TryFromCtx<'_, Endian> for RegisterDesc {
     type Error = Error;
 
     fn try_from_ctx(source: &[u8], endian: Endian) -> Result<(Self, usize)> {
@@ -190,18 +192,18 @@ impl ctx::TryFromCtx<'_, Endian> for Reg {
         let bit_count = source.gread_with::<i32>(offset, endian)?;
         let bit_offset = source.gread_with::<i32>(offset, endian)?;
 
-        let reg = Reg {
+        let reg = RegisterDesc {
             flags,
             combined_id,
             bit_count,
             bit_offset,
         };
-        assert_eq!(Reg::size_with(&reg), *offset);
+        assert_eq!(RegisterDesc::size_with(&reg), *offset);
         Ok((reg, *offset))
     }
 }
 
-impl ctx::TryIntoCtx<Endian> for Reg {
+impl ctx::TryIntoCtx<Endian> for RegisterDesc {
     type Error = Error;
 
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
@@ -220,20 +222,20 @@ impl ctx::SizeWith<RoutineConvention> for RoutineConvention {
 
         size += size_of::<u32>();
         for reg in &routine_convention.volatile_registers {
-            size += Reg::size_with(reg);
+            size += RegisterDesc::size_with(reg);
         }
 
         size += size_of::<u32>();
         for reg in &routine_convention.param_registers {
-            size += Reg::size_with(reg);
+            size += RegisterDesc::size_with(reg);
         }
 
         size += size_of::<u32>();
         for reg in &routine_convention.retval_registers {
-            size += Reg::size_with(reg);
+            size += RegisterDesc::size_with(reg);
         }
 
-        size += Reg::size_with(&routine_convention.frame_register);
+        size += RegisterDesc::size_with(&routine_convention.frame_register);
         size += size_of::<u64>();
         size += size_of::<u8>();
 
@@ -248,24 +250,27 @@ impl ctx::TryFromCtx<'_, Endian> for RoutineConvention {
         let offset = &mut 0;
 
         let volatile_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut volatile_registers = Vec::<Reg>::with_capacity(volatile_registers_count as usize);
+        let mut volatile_registers =
+            Vec::<RegisterDesc>::with_capacity(volatile_registers_count as usize);
         for _ in 0..volatile_registers_count {
             volatile_registers.push(source.gread_with(offset, endian)?);
         }
 
         let param_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut param_registers = Vec::<Reg>::with_capacity(param_registers_count as usize);
+        let mut param_registers =
+            Vec::<RegisterDesc>::with_capacity(param_registers_count as usize);
         for _ in 0..param_registers_count {
             param_registers.push(source.gread_with(offset, endian)?);
         }
 
         let retval_registers_count = source.gread_with::<u32>(offset, endian)?;
-        let mut retval_registers = Vec::<Reg>::with_capacity(retval_registers_count as usize);
+        let mut retval_registers =
+            Vec::<RegisterDesc>::with_capacity(retval_registers_count as usize);
         for _ in 0..retval_registers_count {
             retval_registers.push(source.gread_with(offset, endian)?);
         }
 
-        let frame_register = source.gread_with::<Reg>(offset, endian)?;
+        let frame_register = source.gread_with::<RegisterDesc>(offset, endian)?;
         let shadow_space = source.gread_with::<u64>(offset, endian)?;
         let purge_stack = source.gread_with::<u8>(offset, endian)? != 0;
 
@@ -290,28 +295,28 @@ impl ctx::TryIntoCtx<Endian> for RoutineConvention {
 
         sink.gwrite::<u32>(self.volatile_registers.len().try_into()?, offset)?;
         for reg in self.volatile_registers {
-            sink.gwrite::<Reg>(reg, offset)?;
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
         }
 
         sink.gwrite::<u32>(self.param_registers.len().try_into()?, offset)?;
         for reg in self.param_registers {
-            sink.gwrite::<Reg>(reg, offset)?;
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
         }
 
         sink.gwrite::<u32>(self.retval_registers.len().try_into()?, offset)?;
         for reg in self.retval_registers {
-            sink.gwrite::<Reg>(reg, offset)?;
+            sink.gwrite::<RegisterDesc>(reg, offset)?;
         }
 
-        sink.gwrite::<Reg>(self.frame_register, offset)?;
+        sink.gwrite::<RegisterDesc>(self.frame_register, offset)?;
         sink.gwrite::<u64>(self.shadow_space, offset)?;
         sink.gwrite::<u8>(self.purge_stack.into(), offset)?;
         Ok(*offset)
     }
 }
 
-impl ctx::SizeWith<Imm> for Imm {
-    fn size_with(_imm: &Imm) -> usize {
+impl ctx::SizeWith<ImmediateDesc> for ImmediateDesc {
+    fn size_with(_imm: &ImmediateDesc) -> usize {
         let mut size = 0;
         size += size_of::<u64>();
         size += size_of::<u32>();
@@ -319,7 +324,7 @@ impl ctx::SizeWith<Imm> for Imm {
     }
 }
 
-impl ctx::TryFromCtx<'_, Endian> for Imm {
+impl ctx::TryFromCtx<'_, Endian> for ImmediateDesc {
     type Error = Error;
 
     fn try_from_ctx(source: &[u8], endian: Endian) -> Result<(Self, usize)> {
@@ -328,16 +333,16 @@ impl ctx::TryFromCtx<'_, Endian> for Imm {
         let value = source.gread_with::<u64>(offset, endian)?;
         let bit_count = source.gread_with::<u32>(offset, endian)?;
 
-        let imm = Imm {
+        let imm = ImmediateDesc {
             value: Immediate { u64: value },
             bit_count,
         };
-        assert_eq!(Imm::size_with(&imm), *offset);
+        assert_eq!(ImmediateDesc::size_with(&imm), *offset);
         Ok((imm, *offset))
     }
 }
 
-impl ctx::TryIntoCtx<Endian> for Imm {
+impl ctx::TryIntoCtx<Endian> for ImmediateDesc {
     type Error = Error;
 
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
@@ -353,8 +358,8 @@ impl ctx::SizeWith<Operand> for Operand {
         let mut size = 0;
         size += size_of::<u32>();
         size += match operand {
-            Operand::Imm(i) => Imm::size_with(i),
-            Operand::Reg(r) => Reg::size_with(r),
+            Operand::ImmediateDesc(i) => ImmediateDesc::size_with(i),
+            Operand::RegisterDesc(r) => RegisterDesc::size_with(r),
         };
         size
     }
@@ -368,8 +373,8 @@ impl ctx::TryFromCtx<'_, Endian> for Operand {
 
         let sp_index = source.gread_with::<u32>(offset, endian)?;
         let operand = match sp_index {
-            0 => Operand::Imm(source.gread_with::<Imm>(offset, endian)?),
-            1 => Operand::Reg(source.gread_with::<Reg>(offset, endian)?),
+            0 => Operand::ImmediateDesc(source.gread_with::<ImmediateDesc>(offset, endian)?),
+            1 => Operand::RegisterDesc(source.gread_with::<RegisterDesc>(offset, endian)?),
             i => return Err(Error::Malformed(format!("Invalid operand: {:#x}", i))),
         };
         assert_eq!(Operand::size_with(&operand), *offset);
@@ -383,13 +388,13 @@ impl ctx::TryIntoCtx<Endian> for Operand {
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
         let offset = &mut 0;
         match self {
-            Operand::Imm(i) => {
+            Operand::ImmediateDesc(i) => {
                 sink.gwrite::<u32>(0, offset)?;
-                sink.gwrite::<Imm>(i, offset)?;
+                sink.gwrite::<ImmediateDesc>(i, offset)?;
             }
-            Operand::Reg(r) => {
+            Operand::RegisterDesc(r) => {
                 sink.gwrite::<u32>(1, offset)?;
-                sink.gwrite::<Reg>(r, offset)?;
+                sink.gwrite::<RegisterDesc>(r, offset)?;
             }
         }
         Ok(*offset)
@@ -1045,8 +1050,8 @@ impl ctx::TryIntoCtx<Endian> for BasicBlock {
     }
 }
 
-impl ctx::SizeWith<VTIL> for VTIL {
-    fn size_with(routine: &VTIL) -> usize {
+impl ctx::SizeWith<Routine> for Routine {
+    fn size_with(routine: &Routine) -> usize {
         let mut size = 0;
         size += Header::size_with(&routine.header);
         size += Vip::size_with(&routine.vip);
@@ -1059,14 +1064,14 @@ impl ctx::SizeWith<VTIL> for VTIL {
         }
 
         size += size_of::<u32>();
-        for basic_block in &routine.explored_blocks {
+        for basic_block in routine.explored_blocks.values() {
             size += BasicBlock::size_with(basic_block);
         }
         size
     }
 }
 
-impl ctx::TryFromCtx<'_, Endian> for VTIL {
+impl ctx::TryFromCtx<'_, Endian> for Routine {
     type Error = Error;
 
     fn try_from_ctx(source: &[u8], endian: Endian) -> Result<(Self, usize)> {
@@ -1085,12 +1090,13 @@ impl ctx::TryFromCtx<'_, Endian> for VTIL {
         }
 
         let explored_blocks_count = source.gread_with::<u32>(offset, endian)?;
-        let mut explored_blocks = Vec::<BasicBlock>::with_capacity(explored_blocks_count as usize);
+        let mut explored_blocks = IndexMap::new();
         for _ in 0..explored_blocks_count {
-            explored_blocks.push(source.gread_with(offset, endian)?);
+            let basic_block = source.gread_with::<BasicBlock>(offset, endian)?;
+            explored_blocks.insert(basic_block.vip, basic_block);
         }
 
-        let routine = VTIL {
+        let routine = Routine {
             header,
             vip,
             routine_convention,
@@ -1098,12 +1104,12 @@ impl ctx::TryFromCtx<'_, Endian> for VTIL {
             spec_subroutine_conventions,
             explored_blocks,
         };
-        assert_eq!(VTIL::size_with(&routine), *offset);
+        assert_eq!(Routine::size_with(&routine), *offset);
         Ok((routine, *offset))
     }
 }
 
-impl ctx::TryIntoCtx<Endian> for VTIL {
+impl ctx::TryIntoCtx<Endian> for Routine {
     type Error = Error;
 
     fn try_into_ctx(self, sink: &mut [u8], _endian: Endian) -> Result<usize> {
@@ -1120,7 +1126,7 @@ impl ctx::TryIntoCtx<Endian> for VTIL {
         }
 
         sink.gwrite::<u32>(self.explored_blocks.len().try_into()?, offset)?;
-        for basic_block in self.explored_blocks {
+        for (_, basic_block) in self.explored_blocks.into_iter() {
             sink.gwrite::<BasicBlock>(basic_block, offset)?;
         }
 
@@ -1134,9 +1140,9 @@ mod test {
 
     #[test]
     fn round_trip() -> Result<()> {
-        use crate::VTILReader;
+        use crate::Routine;
         let data = std::fs::read("resources/big.vtil")?;
-        let routine = VTILReader::from_vec(&data)?;
+        let routine = Routine::from_vec(&data)?;
         let rounded_data = routine.into_bytes()?;
         assert_eq!(data, rounded_data);
         Ok(())

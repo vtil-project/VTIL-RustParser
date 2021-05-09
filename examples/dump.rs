@@ -12,8 +12,9 @@
 // OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
+use indexmap::map::Values;
 use std::{env, fmt::Write};
-use vtil_parser::{BasicBlock, Instruction, Operand, Result, VTILReader};
+use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine, Vip};
 
 pub fn dump_instr(instr: &Instruction) -> Result<String> {
     let mut buffer = String::new();
@@ -44,10 +45,10 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
 
     for op in instr.op.operands() {
         match op {
-            Operand::Reg(r) => {
+            Operand::RegisterDesc(r) => {
                 write!(buffer, "{:<12}", format!("{}", r))?;
             }
-            Operand::Imm(i) => {
+            Operand::ImmediateDesc(i) => {
                 write!(buffer, "{:<#12x}", i.i64())?;
             }
         }
@@ -56,7 +57,7 @@ pub fn dump_instr(instr: &Instruction) -> Result<String> {
     Ok(buffer)
 }
 
-fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
+fn dump_routine(basic_blocks: Values<Vip, BasicBlock>) {
     for basic_block in basic_blocks {
         println!("Entry point VIP:       {:#x}", basic_block.vip.0);
         println!("Stack pointer:         {:x}", basic_block.sp_offset);
@@ -69,7 +70,7 @@ fn dump_routine(basic_blocks: &Vec<BasicBlock>) {
 
 fn main() -> Result<()> {
     let mut argv = env::args();
-    let routine = VTILReader::from_path(argv.nth(1).unwrap())?;
-    dump_routine(&routine.explored_blocks);
+    let routine = Routine::from_path(argv.nth(1).unwrap())?;
+    dump_routine(routine.explored_blocks.values());
     Ok(())
 }

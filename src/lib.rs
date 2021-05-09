@@ -37,13 +37,13 @@
 //! on the main GitHub page.
 //!
 //! # Examples
-//! For a simple example of loading a VTIL file and reading out some basic data:
+//! For a simple example of loading a VTIL routine and reading out some basic data:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, ArchitectureIdentifier};
+//! use vtil_parser::{Routine, ArchitectureIdentifier};
 //!
 //! # fn main() -> Result<()> {
-//! let routine = VTILReader::from_path("resources/big.vtil")?;
+//! let routine = Routine::from_path("resources/big.vtil")?;
 //! assert_eq!(routine.header.arch_id, ArchitectureIdentifier::Amd64);
 //! # Ok(())
 //! # }
@@ -52,15 +52,15 @@
 //! For a more complex example, iterating over IL instructions:
 //! ```
 //! # use vtil_parser::Result;
-//! use vtil_parser::{VTILReader, Op, Operand, Reg, Imm, RegisterFlags};
+//! use vtil_parser::{Routine, Op, Operand, RegisterDesc, ImmediateDesc, RegisterFlags};
 //!
 //! # fn main() -> Result<()> {
-//! let routine = VTILReader::from_path("resources/big.vtil")?;
+//! let routine = Routine::from_path("resources/big.vtil")?;
 //!
-//! for basic_block in routine.explored_blocks.iter().take(1) {
+//! for (_, basic_block) in routine.explored_blocks.iter().take(1) {
 //!     for instr in basic_block.instructions.iter().take(1) {
 //!         match &instr.op {
-//!             Op::Ldd(_, Operand::Reg(op2), Operand::Imm(op3)) => {
+//!             Op::Ldd(_, Operand::RegisterDesc(op2), Operand::ImmediateDesc(op3)) => {
 //!                 assert!(op2.flags.contains(RegisterFlags::PHYSICAL));
 //!                 assert!(op3.i64() == 0);
 //!             }
@@ -75,11 +75,13 @@
 //! ```
 
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::useless_conversion)]
 #![deny(missing_docs)]
 
 use memmap::MmapOptions;
 use scroll::{ctx::SizeWith, Pread, Pwrite};
 
+use indexmap::map::IndexMap;
 use std::fs::File;
 use std::path::Path;
 
@@ -97,48 +99,88 @@ pub use pod::*;
 mod serialize;
 pub use serialize::*;
 
+mod instr_builder;
+pub use instr_builder::*;
+
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
 
-/// Reader for VTIL containers
-pub struct VTILReader;
-
-impl VTILReader {
-    /// Tries to load VTIL from the given path
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<VTIL> {
-        let source = Box::new(unsafe { MmapOptions::new().map(&File::open(path.as_ref())?)? });
-        source.pread_with::<VTIL>(0, scroll::LE)
-    }
-
-    /// Loads VTIL from a `Vec<u8>`
-    pub fn from_vec(source: &[u8]) -> Result<VTIL> {
-        source.as_ref().pread_with::<VTIL>(0, scroll::LE)
-    }
-}
-
-impl VTIL {
-    /// Build a new VTIL container
-    pub fn new(
-        arch_id: ArchitectureIdentifier,
-        vip: Vip,
-        routine_convention: RoutineConvention,
-        subroutine_convention: SubroutineConvention,
-    ) -> VTIL {
-        VTIL {
+/// VTIL routine container
+impl Routine {
+    /// Build a new VTIL routine container
+    pub fn new(arch_id: ArchitectureIdentifier) -> Routine {
+        let (routine_convention, subroutine_convention) = match arch_id {
+            ArchitectureIdentifier::Virtual => {
+                let routine_convention = RoutineConvention {
+                    volatile_registers: vec![],
+                    param_registers: vec![],
+                    retval_registers: vec![],
+                    // Not used, so it doesn't matter
+                    frame_register: RegisterDesc {
+                        flags: RegisterFlags::VIRTUAL,
+                        combined_id: 0,
+                        bit_count: 0,
+                        bit_offset: 0,
+                    },
+                    shadow_space: 0,
+                    purge_stack: true,
+                };
+                (routine_convention.clone(), routine_convention)
+            }
+            _ => unimplemented!(),
+        };
+        Routine {
             header: Header { arch_id },
-            vip,
+            vip: Vip(0),
             routine_convention,
             subroutine_convention,
             spec_subroutine_conventions: vec![],
-            explored_blocks: vec![],
+            explored_blocks: IndexMap::new(),
         }
     }
 
-    /// Serialize the VTIL container, consuming it
+    /// Tries to create a [`BasicBlock`], returns `None` if a block already
+    /// exists at the given address
+    pub fn create_block(&mut self, vip: Vip) -> Option<&mut BasicBlock> {
+        if !self.explored_blocks.contains_key(&vip) {
+            let basic_block = BasicBlock {
+                vip,
+                sp_offset: 0,
+                sp_index: 0,
+                last_temporary_index: 0,
+                instructions: vec![],
+                prev_vip: vec![],
+                next_vip: vec![],
+            };
+
+            self.explored_blocks.insert(vip, basic_block);
+            Some(self.explored_blocks.get_mut(&vip).unwrap())
+        } else {
+            None
+        }
+    }
+
+    /// Tries to remove a [`BasicBlock`] from the [`Routine`]
+    pub fn remove_block(&mut self, vip: Vip) -> Option<BasicBlock> {
+        self.explored_blocks.remove(&vip)
+    }
+
+    /// Tries to load VTIL routine from the given path
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Routine> {
+        let source = Box::new(unsafe { MmapOptions::new().map(&File::open(path.as_ref())?)? });
+        source.pread_with::<Routine>(0, scroll::LE)
+    }
+
+    /// Loads VTIL routine from a `Vec<u8>`
+    pub fn from_vec(source: &[u8]) -> Result<Routine> {
+        source.as_ref().pread_with::<Routine>(0, scroll::LE)
+    }
+
+    /// Serialize the VTIL routine container, consuming it
     pub fn into_bytes(self) -> Result<Vec<u8>> {
-        let size = VTIL::size_with(&self);
+        let size = Routine::size_with(&self);
         let mut buffer = vec![0; size];
-        buffer.pwrite_with::<VTIL>(self, 0, scroll::LE)?;
+        buffer.pwrite_with::<Routine>(self, 0, scroll::LE)?;
         Ok(buffer)
     }
 }
