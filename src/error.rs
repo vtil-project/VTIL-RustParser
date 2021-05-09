@@ -1,7 +1,7 @@
 // BSD 3-Clause License
 //
 // Copyright © 2020-2021 Keegan Saunders
-// Copyright © 2020 VTIL Project
+// Copyright © 2020-2021 VTIL Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
