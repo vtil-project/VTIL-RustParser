@@ -30,7 +30,12 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-use crate::{BasicBlock, ImmediateDesc, Instruction, Op, Operand, RegisterDesc, Vip};
+use crate::{
+    BasicBlock, ImmediateDesc, Instruction, Op, Operand, RegisterDesc, RegisterFlags, Vip,
+};
+use std::convert::TryInto;
+
+const VTIL_ARCH_POPPUSH_ENFORCED_STACK_ALIGN: usize = 2;
 
 /// Builder for VTIL instructions in an associated [`BasicBlock`]
 pub struct InstructionBuilder<'a> {
@@ -42,8 +47,8 @@ fn insert_instr(basic_block: &mut BasicBlock, op: Op) {
     basic_block.instructions.push(Instruction {
         op,
         vip: Vip::invalid(),
-        sp_offset: 0,
-        sp_index: 0,
+        sp_offset: basic_block.sp_offset,
+        sp_index: basic_block.sp_index,
         sp_reset: false,
     });
 }
@@ -52,6 +57,64 @@ impl<'a> InstructionBuilder<'a> {
     /// Build an [`InstructionBuilder`] from an existing [`BasicBlock`]
     pub fn from(basic_block: &'a mut BasicBlock) -> InstructionBuilder<'a> {
         InstructionBuilder { basic_block }
+    }
+
+    /// Queues a stack shift
+    pub fn shift_sp(&mut self, offset: i64) {
+        self.basic_block.sp_offset += offset;
+    }
+
+    /// Pushes an operand up the stack queueing the shift in the stack pointer
+    pub fn push(&mut self, op1: Operand) -> &mut Self {
+        if let Operand::RegisterDesc(sp) = op1 {
+            if sp.flags.contains(RegisterFlags::STACK_POINTER) {
+                let tmp0 = self.basic_block.tmp(64);
+                self.mov(tmp0, op1).push(tmp0.into());
+                return self;
+            }
+        }
+
+        let misalignment = (op1.size() % VTIL_ARCH_POPPUSH_ENFORCED_STACK_ALIGN) as i64;
+        if misalignment != 0 {
+            let padding_size = VTIL_ARCH_POPPUSH_ENFORCED_STACK_ALIGN as i64 - misalignment;
+            self.shift_sp(-padding_size);
+            self.str(
+                RegisterDesc::SP,
+                self.basic_block.sp_offset.into(),
+                ImmediateDesc::new(0u64, TryInto::<u32>::try_into(padding_size).unwrap() * 8)
+                    .into(),
+            );
+        }
+
+        self.shift_sp(-(op1.size() as i64));
+        self.str(RegisterDesc::SP, self.basic_block.sp_offset.into(), op1);
+
+        self
+    }
+
+    /// Pops an operand from the stack queueing the shift in the stack pointer
+    pub fn pop(&mut self, op1: RegisterDesc) -> &mut Self {
+        let offset = self.basic_block.sp_offset;
+
+        let misalignment = (op1.size() % VTIL_ARCH_POPPUSH_ENFORCED_STACK_ALIGN) as i64;
+        if misalignment != 0 {
+            self.shift_sp(VTIL_ARCH_POPPUSH_ENFORCED_STACK_ALIGN as i64 - misalignment);
+        }
+
+        self.shift_sp(op1.size() as i64);
+        self.ldd(op1, RegisterDesc::SP, offset.into());
+
+        self
+    }
+
+    /// Push flags register
+    pub fn pushf(&mut self) -> &mut Self {
+        self.push(RegisterDesc::FLAGS.into())
+    }
+
+    /// Pop flags register
+    pub fn popf(&mut self) -> &mut Self {
+        self.push(RegisterDesc::FLAGS.into())
     }
 
     /// Insert an [`Op::Mov`]
@@ -417,10 +480,7 @@ mod test {
         let basic_block = routine.create_block(Vip(0)).unwrap();
         let tmp0 = basic_block.tmp(64);
         let mut builder = InstructionBuilder::from(basic_block);
-        builder.mov(
-            tmp0,
-            Operand::ImmediateDesc(ImmediateDesc::new(0xA57E6F0335298D0u64, 64)),
-        );
+        builder.mov(tmp0, 0xA57E6F0335298D0u64.into());
 
         assert_eq!(basic_block.instructions.len(), 1);
         let instr = &basic_block.instructions[0];

@@ -19,9 +19,24 @@ use vtil_parser::{
 fn main() -> Result<()> {
     let mut routine = Routine::new(ArchitectureIdentifier::Virtual);
     let basic_block = routine.create_block(Vip(0)).unwrap();
-    let tmp0 = basic_block.tmp(64);
+    let tmp1 = basic_block.tmp(32);
     let mut builder = InstructionBuilder::from(basic_block);
-    builder.mov(tmp0, ImmediateDesc::new(0xA57E6F0335298D0u64, 64).into());
+
+    for i in 0..100 {
+        builder
+            .add(tmp1, 13u32.into())
+            .nop()
+            .sub(tmp1, 12u32.into())
+            .nop()
+            .add(tmp1, 14u32.into())
+            .mov(tmp1, tmp1.into())
+            .sub(tmp1, tmp1.into())
+            .xor(tmp1, (i as u32).into())
+            .push(tmp1.into());
+    }
+
+    builder.vpinr(tmp1).vexit(0u64.into());
+
     std::fs::write("built.vtil", routine.into_bytes()?)?;
     Ok(())
 }

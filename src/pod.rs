@@ -115,6 +115,46 @@ pub struct RegisterDesc {
 }
 
 impl RegisterDesc {
+    /// Undefined register
+    pub const UNDEFINED: RegisterDesc = RegisterDesc {
+        flags: RegisterFlags::from_bits_truncate(
+            RegisterFlags::VOLATILE.bits() | RegisterFlags::UNDEFINED.bits(),
+        ),
+        combined_id: 0,
+        bit_count: 64,
+        bit_offset: 0,
+    };
+
+    /// Image base register
+    pub const IMGBASE: RegisterDesc = RegisterDesc {
+        flags: RegisterFlags::from_bits_truncate(
+            RegisterFlags::READONLY.bits() | RegisterFlags::IMAGE_BASE.bits(),
+        ),
+        combined_id: 0,
+        bit_count: 64,
+        bit_offset: 0,
+    };
+
+    /// Flags register
+    pub const FLAGS: RegisterDesc = RegisterDesc {
+        flags: RegisterFlags::from_bits_truncate(
+            RegisterFlags::PHYSICAL.bits() | RegisterFlags::FLAGS.bits(),
+        ),
+        combined_id: 0,
+        bit_count: 64,
+        bit_offset: 0,
+    };
+
+    /// Stack pointer register
+    pub const SP: RegisterDesc = RegisterDesc {
+        flags: RegisterFlags::from_bits_truncate(
+            RegisterFlags::PHYSICAL.bits() | RegisterFlags::STACK_POINTER.bits(),
+        ),
+        combined_id: 0,
+        bit_count: 64,
+        bit_offset: 0,
+    };
+
     /// Local identifier that is intentionally unique to this register
     pub fn local_id(&self) -> u64 {
         self.combined_id & !(0xff << 56)
@@ -128,6 +168,11 @@ impl RegisterDesc {
             2 => ArchitectureIdentifier::Virtual,
             _ => unreachable!(),
         }
+    }
+
+    /// Operand size in bits, rounding up
+    pub fn size(&self) -> usize {
+        (self.bit_count as usize + 7) / 8
     }
 }
 
@@ -289,6 +334,54 @@ pub struct ImmediateDesc {
     pub bit_count: u32,
 }
 
+impl From<i64> for ImmediateDesc {
+    fn from(imm: i64) -> ImmediateDesc {
+        ImmediateDesc::new_signed(imm, 64)
+    }
+}
+
+impl From<u64> for ImmediateDesc {
+    fn from(imm: u64) -> ImmediateDesc {
+        ImmediateDesc::new(imm, 64)
+    }
+}
+
+impl From<i32> for ImmediateDesc {
+    fn from(imm: i32) -> ImmediateDesc {
+        ImmediateDesc::new_signed(imm, 32)
+    }
+}
+
+impl From<u32> for ImmediateDesc {
+    fn from(imm: u32) -> ImmediateDesc {
+        ImmediateDesc::new(imm, 32)
+    }
+}
+
+impl From<i16> for ImmediateDesc {
+    fn from(imm: i16) -> ImmediateDesc {
+        ImmediateDesc::new_signed(imm, 16)
+    }
+}
+
+impl From<u16> for ImmediateDesc {
+    fn from(imm: u16) -> ImmediateDesc {
+        ImmediateDesc::new(imm, 16)
+    }
+}
+
+impl From<i8> for ImmediateDesc {
+    fn from(imm: i8) -> ImmediateDesc {
+        ImmediateDesc::new_signed(imm, 8)
+    }
+}
+
+impl From<u8> for ImmediateDesc {
+    fn from(imm: u8) -> ImmediateDesc {
+        ImmediateDesc::new(imm, 8)
+    }
+}
+
 impl ImmediateDesc {
     /// Immediate from a `u64`
     pub fn new<T: Into<u64>>(value: T, bit_count: u32) -> ImmediateDesc {
@@ -327,6 +420,11 @@ impl ImmediateDesc {
     pub fn set_i64(&mut self, imm: i64) {
         self.value.set_i64(imm);
     }
+
+    /// Operand size in bits, rounding up
+    pub fn size(&self) -> usize {
+        (self.bit_count as usize + 7) / 8
+    }
 }
 
 /// VTIL instruction operand
@@ -337,6 +435,64 @@ pub enum Operand {
     ImmediateDesc(ImmediateDesc),
     /// Register operand containing a register description
     RegisterDesc(RegisterDesc),
+}
+
+impl From<i64> for Operand {
+    fn from(imm: i64) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<u64> for Operand {
+    fn from(imm: u64) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<i32> for Operand {
+    fn from(imm: i32) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<u32> for Operand {
+    fn from(imm: u32) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<i16> for Operand {
+    fn from(imm: i16) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<u16> for Operand {
+    fn from(imm: u16) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<i8> for Operand {
+    fn from(imm: i8) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl From<u8> for Operand {
+    fn from(imm: u8) -> Operand {
+        Operand::ImmediateDesc(imm.into())
+    }
+}
+
+impl Operand {
+    /// Operand size in bits, rounding up
+    pub fn size(&self) -> usize {
+        match self {
+            Operand::ImmediateDesc(i) => i.size(),
+            Operand::RegisterDesc(r) => r.size(),
+        }
+    }
 }
 
 impl From<RegisterDesc> for Operand {
