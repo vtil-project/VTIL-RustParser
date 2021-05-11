@@ -13,14 +13,16 @@
 //
 
 use vtil_parser::{
-    ArchitectureIdentifier, ImmediateDesc, InstructionBuilder, Result, Routine, Vip,
+    ArchitectureIdentifier, ImmediateDesc, InstructionBuilder, RegisterDesc, RegisterFlags, Result,
+    Routine, Vip,
 };
 
 fn main() -> Result<()> {
     let mut routine = Routine::new(ArchitectureIdentifier::Virtual);
+    routine.header.arch_id = ArchitectureIdentifier::Amd64;
     let basic_block = routine.create_block(Vip(0)).unwrap();
-    let tmp1 = basic_block.tmp(32);
     let mut builder = InstructionBuilder::from(basic_block);
+    let tmp1 = RegisterDesc::X86_REG_RAX;
 
     for i in 0..100 {
         builder
