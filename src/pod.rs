@@ -117,14 +117,17 @@ pub struct RegisterDesc {
     pub bit_offset: i32,
 }
 
+// Mask for local ID in `combined_id`, invert for architecture ID
+const LOCAL_ID_MASK: u64 = 0x00ffffffffffffff;
+
 // Define a physical register, including bit count and bit offset
 macro_rules! dr {
-    ($name:ident, $id:expr, $offset:expr, $count:expr, $doc:expr) => {
+    ($arch_id:expr, $name:ident, $id:expr, $offset:expr, $count:expr, $doc:expr) => {
         #[doc = $doc]
         #[doc = " register"]
         pub const $name: RegisterDesc = RegisterDesc {
             flags: RegisterFlags::PHYSICAL,
-            combined_id: $id,
+            combined_id: (($arch_id as u64) << 56) | $id,
             bit_count: $count * 8,
             bit_offset: $offset * 8,
         };
@@ -132,6 +135,18 @@ macro_rules! dr {
 
     ($name:ident, $id:expr, $offset:expr, $count:expr) => {
         dr!($name, $id, $offset, $count, stringify!($name));
+    };
+}
+
+macro_rules! dr_amd64 {
+    ($name:ident, $id:expr, $offset:expr, $count:expr) => {
+        dr!(ArchitectureIdentifier::Amd64, $name, $id, $offset, $count, stringify!($name));
+    };
+}
+
+macro_rules! dr_arm64 {
+    ($name:ident, $id:expr, $offset:expr, $count:expr) => {
+        dr!(ArchitectureIdentifier::Arm64, $name, $id, $offset, $count, stringify!($name));
     };
 }
 
@@ -176,203 +191,203 @@ impl RegisterDesc {
         bit_offset: 0,
     };
 
-    dr!(X86_REG_RAX, amd64::X86_REG_RAX, 0, 8);
-    dr!(X86_REG_EAX, amd64::X86_REG_RAX, 0, 4);
-    dr!(X86_REG_AX, amd64::X86_REG_RAX, 0, 2);
-    dr!(X86_REG_AH, amd64::X86_REG_RAX, 1, 1);
-    dr!(X86_REG_AL, amd64::X86_REG_RAX, 0, 1);
+    dr_amd64!(X86_REG_RAX, amd64::X86_REG_RAX, 0, 8);
+    dr_amd64!(X86_REG_EAX, amd64::X86_REG_RAX, 0, 4);
+    dr_amd64!(X86_REG_AX, amd64::X86_REG_RAX, 0, 2);
+    dr_amd64!(X86_REG_AH, amd64::X86_REG_RAX, 1, 1);
+    dr_amd64!(X86_REG_AL, amd64::X86_REG_RAX, 0, 1);
 
-    dr!(X86_REG_RBX, amd64::X86_REG_RBX, 0, 8);
-    dr!(X86_REG_EBX, amd64::X86_REG_RBX, 0, 4);
-    dr!(X86_REG_BX, amd64::X86_REG_RBX, 0, 2);
-    dr!(X86_REG_BH, amd64::X86_REG_RBX, 1, 1);
-    dr!(X86_REG_BL, amd64::X86_REG_RBX, 0, 1);
+    dr_amd64!(X86_REG_RBX, amd64::X86_REG_RBX, 0, 8);
+    dr_amd64!(X86_REG_EBX, amd64::X86_REG_RBX, 0, 4);
+    dr_amd64!(X86_REG_BX, amd64::X86_REG_RBX, 0, 2);
+    dr_amd64!(X86_REG_BH, amd64::X86_REG_RBX, 1, 1);
+    dr_amd64!(X86_REG_BL, amd64::X86_REG_RBX, 0, 1);
 
-    dr!(X86_REG_RCX, amd64::X86_REG_RCX, 0, 8);
-    dr!(X86_REG_ECX, amd64::X86_REG_RCX, 0, 4);
-    dr!(X86_REG_CX, amd64::X86_REG_RCX, 0, 2);
-    dr!(X86_REG_CH, amd64::X86_REG_RCX, 1, 1);
-    dr!(X86_REG_CL, amd64::X86_REG_RCX, 0, 1);
+    dr_amd64!(X86_REG_RCX, amd64::X86_REG_RCX, 0, 8);
+    dr_amd64!(X86_REG_ECX, amd64::X86_REG_RCX, 0, 4);
+    dr_amd64!(X86_REG_CX, amd64::X86_REG_RCX, 0, 2);
+    dr_amd64!(X86_REG_CH, amd64::X86_REG_RCX, 1, 1);
+    dr_amd64!(X86_REG_CL, amd64::X86_REG_RCX, 0, 1);
 
-    dr!(X86_REG_RDX, amd64::X86_REG_RDX, 0, 8);
-    dr!(X86_REG_EDX, amd64::X86_REG_RDX, 0, 4);
-    dr!(X86_REG_DX, amd64::X86_REG_RDX, 0, 2);
-    dr!(X86_REG_DH, amd64::X86_REG_RDX, 1, 1);
-    dr!(X86_REG_DL, amd64::X86_REG_RDX, 0, 1);
+    dr_amd64!(X86_REG_RDX, amd64::X86_REG_RDX, 0, 8);
+    dr_amd64!(X86_REG_EDX, amd64::X86_REG_RDX, 0, 4);
+    dr_amd64!(X86_REG_DX, amd64::X86_REG_RDX, 0, 2);
+    dr_amd64!(X86_REG_DH, amd64::X86_REG_RDX, 1, 1);
+    dr_amd64!(X86_REG_DL, amd64::X86_REG_RDX, 0, 1);
 
-    dr!(X86_REG_RDI, amd64::X86_REG_RDI, 0, 8);
-    dr!(X86_REG_EDI, amd64::X86_REG_RDI, 0, 4);
-    dr!(X86_REG_DI, amd64::X86_REG_RDI, 0, 2);
-    dr!(X86_REG_DIL, amd64::X86_REG_RDI, 0, 1);
+    dr_amd64!(X86_REG_RDI, amd64::X86_REG_RDI, 0, 8);
+    dr_amd64!(X86_REG_EDI, amd64::X86_REG_RDI, 0, 4);
+    dr_amd64!(X86_REG_DI, amd64::X86_REG_RDI, 0, 2);
+    dr_amd64!(X86_REG_DIL, amd64::X86_REG_RDI, 0, 1);
 
-    dr!(X86_REG_RSI, amd64::X86_REG_RSI, 0, 8);
-    dr!(X86_REG_ESI, amd64::X86_REG_RSI, 0, 4);
-    dr!(X86_REG_SI, amd64::X86_REG_RSI, 0, 2);
-    dr!(X86_REG_SIL, amd64::X86_REG_RSI, 0, 1);
+    dr_amd64!(X86_REG_RSI, amd64::X86_REG_RSI, 0, 8);
+    dr_amd64!(X86_REG_ESI, amd64::X86_REG_RSI, 0, 4);
+    dr_amd64!(X86_REG_SI, amd64::X86_REG_RSI, 0, 2);
+    dr_amd64!(X86_REG_SIL, amd64::X86_REG_RSI, 0, 1);
 
-    dr!(X86_REG_RBP, amd64::X86_REG_RBP, 0, 8);
-    dr!(X86_REG_EBP, amd64::X86_REG_RBP, 0, 4);
-    dr!(X86_REG_BP, amd64::X86_REG_RBP, 0, 2);
-    dr!(X86_REG_BPL, amd64::X86_REG_RBP, 0, 1);
+    dr_amd64!(X86_REG_RBP, amd64::X86_REG_RBP, 0, 8);
+    dr_amd64!(X86_REG_EBP, amd64::X86_REG_RBP, 0, 4);
+    dr_amd64!(X86_REG_BP, amd64::X86_REG_RBP, 0, 2);
+    dr_amd64!(X86_REG_BPL, amd64::X86_REG_RBP, 0, 1);
 
-    dr!(X86_REG_RSP, amd64::X86_REG_RSP, 0, 8);
-    dr!(X86_REG_ESP, amd64::X86_REG_RSP, 0, 4);
-    dr!(X86_REG_SP, amd64::X86_REG_RSP, 0, 2);
-    dr!(X86_REG_SPL, amd64::X86_REG_RSP, 0, 1);
+    dr_amd64!(X86_REG_RSP, amd64::X86_REG_RSP, 0, 8);
+    dr_amd64!(X86_REG_ESP, amd64::X86_REG_RSP, 0, 4);
+    dr_amd64!(X86_REG_SP, amd64::X86_REG_RSP, 0, 2);
+    dr_amd64!(X86_REG_SPL, amd64::X86_REG_RSP, 0, 1);
 
-    dr!(X86_REG_R8, amd64::X86_REG_R8, 0, 8);
-    dr!(X86_REG_R8D, amd64::X86_REG_R8, 0, 4);
-    dr!(X86_REG_R8W, amd64::X86_REG_R8, 0, 2);
-    dr!(X86_REG_R8B, amd64::X86_REG_R8, 0, 1);
+    dr_amd64!(X86_REG_R8, amd64::X86_REG_R8, 0, 8);
+    dr_amd64!(X86_REG_R8D, amd64::X86_REG_R8, 0, 4);
+    dr_amd64!(X86_REG_R8W, amd64::X86_REG_R8, 0, 2);
+    dr_amd64!(X86_REG_R8B, amd64::X86_REG_R8, 0, 1);
 
-    dr!(X86_REG_R9, amd64::X86_REG_R9, 0, 8);
-    dr!(X86_REG_R9D, amd64::X86_REG_R9, 0, 4);
-    dr!(X86_REG_R9W, amd64::X86_REG_R9, 0, 2);
-    dr!(X86_REG_R9B, amd64::X86_REG_R9, 0, 1);
+    dr_amd64!(X86_REG_R9, amd64::X86_REG_R9, 0, 8);
+    dr_amd64!(X86_REG_R9D, amd64::X86_REG_R9, 0, 4);
+    dr_amd64!(X86_REG_R9W, amd64::X86_REG_R9, 0, 2);
+    dr_amd64!(X86_REG_R9B, amd64::X86_REG_R9, 0, 1);
 
-    dr!(X86_REG_R10, amd64::X86_REG_R10, 0, 8);
-    dr!(X86_REG_R10D, amd64::X86_REG_R10, 0, 4);
-    dr!(X86_REG_R10W, amd64::X86_REG_R10, 0, 2);
-    dr!(X86_REG_R10B, amd64::X86_REG_R10, 0, 1);
+    dr_amd64!(X86_REG_R10, amd64::X86_REG_R10, 0, 8);
+    dr_amd64!(X86_REG_R10D, amd64::X86_REG_R10, 0, 4);
+    dr_amd64!(X86_REG_R10W, amd64::X86_REG_R10, 0, 2);
+    dr_amd64!(X86_REG_R10B, amd64::X86_REG_R10, 0, 1);
 
-    dr!(X86_REG_R11, amd64::X86_REG_R11, 0, 8);
-    dr!(X86_REG_R11D, amd64::X86_REG_R11, 0, 4);
-    dr!(X86_REG_R11W, amd64::X86_REG_R11, 0, 2);
-    dr!(X86_REG_R11B, amd64::X86_REG_R11, 0, 1);
+    dr_amd64!(X86_REG_R11, amd64::X86_REG_R11, 0, 8);
+    dr_amd64!(X86_REG_R11D, amd64::X86_REG_R11, 0, 4);
+    dr_amd64!(X86_REG_R11W, amd64::X86_REG_R11, 0, 2);
+    dr_amd64!(X86_REG_R11B, amd64::X86_REG_R11, 0, 1);
 
-    dr!(X86_REG_R12, amd64::X86_REG_R12, 0, 8);
-    dr!(X86_REG_R12D, amd64::X86_REG_R12, 0, 4);
-    dr!(X86_REG_R12W, amd64::X86_REG_R12, 0, 2);
-    dr!(X86_REG_R12B, amd64::X86_REG_R12, 0, 1);
+    dr_amd64!(X86_REG_R12, amd64::X86_REG_R12, 0, 8);
+    dr_amd64!(X86_REG_R12D, amd64::X86_REG_R12, 0, 4);
+    dr_amd64!(X86_REG_R12W, amd64::X86_REG_R12, 0, 2);
+    dr_amd64!(X86_REG_R12B, amd64::X86_REG_R12, 0, 1);
 
-    dr!(X86_REG_R13, amd64::X86_REG_R13, 0, 8);
-    dr!(X86_REG_R13D, amd64::X86_REG_R13, 0, 4);
-    dr!(X86_REG_R13W, amd64::X86_REG_R13, 0, 2);
-    dr!(X86_REG_R13B, amd64::X86_REG_R13, 0, 1);
+    dr_amd64!(X86_REG_R13, amd64::X86_REG_R13, 0, 8);
+    dr_amd64!(X86_REG_R13D, amd64::X86_REG_R13, 0, 4);
+    dr_amd64!(X86_REG_R13W, amd64::X86_REG_R13, 0, 2);
+    dr_amd64!(X86_REG_R13B, amd64::X86_REG_R13, 0, 1);
 
-    dr!(X86_REG_R14, amd64::X86_REG_R14, 0, 8);
-    dr!(X86_REG_R14D, amd64::X86_REG_R14, 0, 4);
-    dr!(X86_REG_R14W, amd64::X86_REG_R14, 0, 2);
-    dr!(X86_REG_R14B, amd64::X86_REG_R14, 0, 1);
+    dr_amd64!(X86_REG_R14, amd64::X86_REG_R14, 0, 8);
+    dr_amd64!(X86_REG_R14D, amd64::X86_REG_R14, 0, 4);
+    dr_amd64!(X86_REG_R14W, amd64::X86_REG_R14, 0, 2);
+    dr_amd64!(X86_REG_R14B, amd64::X86_REG_R14, 0, 1);
 
-    dr!(X86_REG_R15, amd64::X86_REG_R15, 0, 8);
-    dr!(X86_REG_R15D, amd64::X86_REG_R15, 0, 4);
-    dr!(X86_REG_R15W, amd64::X86_REG_R15, 0, 2);
-    dr!(X86_REG_R15B, amd64::X86_REG_R15, 0, 1);
+    dr_amd64!(X86_REG_R15, amd64::X86_REG_R15, 0, 8);
+    dr_amd64!(X86_REG_R15D, amd64::X86_REG_R15, 0, 4);
+    dr_amd64!(X86_REG_R15W, amd64::X86_REG_R15, 0, 2);
+    dr_amd64!(X86_REG_R15B, amd64::X86_REG_R15, 0, 1);
 
-    dr!(X86_REG_EFLAGS, amd64::X86_REG_EFLAGS, 0, 8);
+    dr_amd64!(X86_REG_EFLAGS, amd64::X86_REG_EFLAGS, 0, 8);
 
-    dr!(ARM64_REG_X0, arm64::ARM64_REG_X0, 0, 8);
-    dr!(ARM64_REG_W0, arm64::ARM64_REG_X0, 0, 4);
+    dr_arm64!(ARM64_REG_X0, arm64::ARM64_REG_X0, 0, 8);
+    dr_arm64!(ARM64_REG_W0, arm64::ARM64_REG_X0, 0, 4);
 
-    dr!(ARM64_REG_X1, arm64::ARM64_REG_X1, 0, 8);
-    dr!(ARM64_REG_W1, arm64::ARM64_REG_X1, 0, 4);
+    dr_arm64!(ARM64_REG_X1, arm64::ARM64_REG_X1, 0, 8);
+    dr_arm64!(ARM64_REG_W1, arm64::ARM64_REG_X1, 0, 4);
 
-    dr!(ARM64_REG_X2, arm64::ARM64_REG_X2, 0, 8);
-    dr!(ARM64_REG_W2, arm64::ARM64_REG_X2, 0, 4);
+    dr_arm64!(ARM64_REG_X2, arm64::ARM64_REG_X2, 0, 8);
+    dr_arm64!(ARM64_REG_W2, arm64::ARM64_REG_X2, 0, 4);
 
-    dr!(ARM64_REG_X3, arm64::ARM64_REG_X3, 0, 8);
-    dr!(ARM64_REG_W3, arm64::ARM64_REG_X3, 0, 4);
+    dr_arm64!(ARM64_REG_X3, arm64::ARM64_REG_X3, 0, 8);
+    dr_arm64!(ARM64_REG_W3, arm64::ARM64_REG_X3, 0, 4);
 
-    dr!(ARM64_REG_X4, arm64::ARM64_REG_X4, 0, 8);
-    dr!(ARM64_REG_W4, arm64::ARM64_REG_X4, 0, 4);
+    dr_arm64!(ARM64_REG_X4, arm64::ARM64_REG_X4, 0, 8);
+    dr_arm64!(ARM64_REG_W4, arm64::ARM64_REG_X4, 0, 4);
 
-    dr!(ARM64_REG_X5, arm64::ARM64_REG_X5, 0, 8);
-    dr!(ARM64_REG_W5, arm64::ARM64_REG_X5, 0, 4);
+    dr_arm64!(ARM64_REG_X5, arm64::ARM64_REG_X5, 0, 8);
+    dr_arm64!(ARM64_REG_W5, arm64::ARM64_REG_X5, 0, 4);
 
-    dr!(ARM64_REG_X6, arm64::ARM64_REG_X6, 0, 8);
-    dr!(ARM64_REG_W6, arm64::ARM64_REG_X6, 0, 4);
+    dr_arm64!(ARM64_REG_X6, arm64::ARM64_REG_X6, 0, 8);
+    dr_arm64!(ARM64_REG_W6, arm64::ARM64_REG_X6, 0, 4);
 
-    dr!(ARM64_REG_X7, arm64::ARM64_REG_X7, 0, 8);
-    dr!(ARM64_REG_W7, arm64::ARM64_REG_X7, 0, 4);
+    dr_arm64!(ARM64_REG_X7, arm64::ARM64_REG_X7, 0, 8);
+    dr_arm64!(ARM64_REG_W7, arm64::ARM64_REG_X7, 0, 4);
 
-    dr!(ARM64_REG_X8, arm64::ARM64_REG_X8, 0, 8);
-    dr!(ARM64_REG_W8, arm64::ARM64_REG_X8, 0, 4);
+    dr_arm64!(ARM64_REG_X8, arm64::ARM64_REG_X8, 0, 8);
+    dr_arm64!(ARM64_REG_W8, arm64::ARM64_REG_X8, 0, 4);
 
-    dr!(ARM64_REG_X9, arm64::ARM64_REG_X9, 0, 8);
-    dr!(ARM64_REG_W9, arm64::ARM64_REG_X9, 0, 4);
+    dr_arm64!(ARM64_REG_X9, arm64::ARM64_REG_X9, 0, 8);
+    dr_arm64!(ARM64_REG_W9, arm64::ARM64_REG_X9, 0, 4);
 
-    dr!(ARM64_REG_X10, arm64::ARM64_REG_X10, 0, 8);
-    dr!(ARM64_REG_W10, arm64::ARM64_REG_X10, 0, 4);
+    dr_arm64!(ARM64_REG_X10, arm64::ARM64_REG_X10, 0, 8);
+    dr_arm64!(ARM64_REG_W10, arm64::ARM64_REG_X10, 0, 4);
 
-    dr!(ARM64_REG_X11, arm64::ARM64_REG_X11, 0, 8);
-    dr!(ARM64_REG_W11, arm64::ARM64_REG_X11, 0, 4);
+    dr_arm64!(ARM64_REG_X11, arm64::ARM64_REG_X11, 0, 8);
+    dr_arm64!(ARM64_REG_W11, arm64::ARM64_REG_X11, 0, 4);
 
-    dr!(ARM64_REG_X12, arm64::ARM64_REG_X12, 0, 8);
-    dr!(ARM64_REG_W12, arm64::ARM64_REG_X12, 0, 4);
+    dr_arm64!(ARM64_REG_X12, arm64::ARM64_REG_X12, 0, 8);
+    dr_arm64!(ARM64_REG_W12, arm64::ARM64_REG_X12, 0, 4);
 
-    dr!(ARM64_REG_X13, arm64::ARM64_REG_X13, 0, 8);
-    dr!(ARM64_REG_W13, arm64::ARM64_REG_X13, 0, 4);
+    dr_arm64!(ARM64_REG_X13, arm64::ARM64_REG_X13, 0, 8);
+    dr_arm64!(ARM64_REG_W13, arm64::ARM64_REG_X13, 0, 4);
 
-    dr!(ARM64_REG_X14, arm64::ARM64_REG_X14, 0, 8);
-    dr!(ARM64_REG_W14, arm64::ARM64_REG_X14, 0, 4);
+    dr_arm64!(ARM64_REG_X14, arm64::ARM64_REG_X14, 0, 8);
+    dr_arm64!(ARM64_REG_W14, arm64::ARM64_REG_X14, 0, 4);
 
-    dr!(ARM64_REG_X15, arm64::ARM64_REG_X15, 0, 8);
-    dr!(ARM64_REG_W15, arm64::ARM64_REG_X15, 0, 4);
+    dr_arm64!(ARM64_REG_X15, arm64::ARM64_REG_X15, 0, 8);
+    dr_arm64!(ARM64_REG_W15, arm64::ARM64_REG_X15, 0, 4);
 
-    dr!(ARM64_REG_X16, arm64::ARM64_REG_X16, 0, 8);
-    dr!(ARM64_REG_W16, arm64::ARM64_REG_X16, 0, 4);
+    dr_arm64!(ARM64_REG_X16, arm64::ARM64_REG_X16, 0, 8);
+    dr_arm64!(ARM64_REG_W16, arm64::ARM64_REG_X16, 0, 4);
 
-    dr!(ARM64_REG_X17, arm64::ARM64_REG_X17, 0, 8);
-    dr!(ARM64_REG_W17, arm64::ARM64_REG_X17, 0, 4);
+    dr_arm64!(ARM64_REG_X17, arm64::ARM64_REG_X17, 0, 8);
+    dr_arm64!(ARM64_REG_W17, arm64::ARM64_REG_X17, 0, 4);
 
-    dr!(ARM64_REG_X18, arm64::ARM64_REG_X18, 0, 8);
-    dr!(ARM64_REG_W18, arm64::ARM64_REG_X18, 0, 4);
+    dr_arm64!(ARM64_REG_X18, arm64::ARM64_REG_X18, 0, 8);
+    dr_arm64!(ARM64_REG_W18, arm64::ARM64_REG_X18, 0, 4);
 
-    dr!(ARM64_REG_X19, arm64::ARM64_REG_X19, 0, 8);
-    dr!(ARM64_REG_W19, arm64::ARM64_REG_X19, 0, 4);
+    dr_arm64!(ARM64_REG_X19, arm64::ARM64_REG_X19, 0, 8);
+    dr_arm64!(ARM64_REG_W19, arm64::ARM64_REG_X19, 0, 4);
 
-    dr!(ARM64_REG_X20, arm64::ARM64_REG_X20, 0, 8);
-    dr!(ARM64_REG_W20, arm64::ARM64_REG_X20, 0, 4);
+    dr_arm64!(ARM64_REG_X20, arm64::ARM64_REG_X20, 0, 8);
+    dr_arm64!(ARM64_REG_W20, arm64::ARM64_REG_X20, 0, 4);
 
-    dr!(ARM64_REG_X21, arm64::ARM64_REG_X21, 0, 8);
-    dr!(ARM64_REG_W21, arm64::ARM64_REG_X21, 0, 4);
+    dr_arm64!(ARM64_REG_X21, arm64::ARM64_REG_X21, 0, 8);
+    dr_arm64!(ARM64_REG_W21, arm64::ARM64_REG_X21, 0, 4);
 
-    dr!(ARM64_REG_X22, arm64::ARM64_REG_X22, 0, 8);
-    dr!(ARM64_REG_W22, arm64::ARM64_REG_X22, 0, 4);
+    dr_arm64!(ARM64_REG_X22, arm64::ARM64_REG_X22, 0, 8);
+    dr_arm64!(ARM64_REG_W22, arm64::ARM64_REG_X22, 0, 4);
 
-    dr!(ARM64_REG_X23, arm64::ARM64_REG_X23, 0, 8);
-    dr!(ARM64_REG_W23, arm64::ARM64_REG_X23, 0, 4);
+    dr_arm64!(ARM64_REG_X23, arm64::ARM64_REG_X23, 0, 8);
+    dr_arm64!(ARM64_REG_W23, arm64::ARM64_REG_X23, 0, 4);
 
-    dr!(ARM64_REG_X24, arm64::ARM64_REG_X24, 0, 8);
-    dr!(ARM64_REG_W24, arm64::ARM64_REG_X24, 0, 4);
+    dr_arm64!(ARM64_REG_X24, arm64::ARM64_REG_X24, 0, 8);
+    dr_arm64!(ARM64_REG_W24, arm64::ARM64_REG_X24, 0, 4);
 
-    dr!(ARM64_REG_X25, arm64::ARM64_REG_X25, 0, 8);
-    dr!(ARM64_REG_W25, arm64::ARM64_REG_X25, 0, 4);
+    dr_arm64!(ARM64_REG_X25, arm64::ARM64_REG_X25, 0, 8);
+    dr_arm64!(ARM64_REG_W25, arm64::ARM64_REG_X25, 0, 4);
 
-    dr!(ARM64_REG_X26, arm64::ARM64_REG_X26, 0, 8);
-    dr!(ARM64_REG_W26, arm64::ARM64_REG_X26, 0, 4);
+    dr_arm64!(ARM64_REG_X26, arm64::ARM64_REG_X26, 0, 8);
+    dr_arm64!(ARM64_REG_W26, arm64::ARM64_REG_X26, 0, 4);
 
-    dr!(ARM64_REG_X27, arm64::ARM64_REG_X27, 0, 8);
-    dr!(ARM64_REG_W27, arm64::ARM64_REG_X27, 0, 4);
+    dr_arm64!(ARM64_REG_X27, arm64::ARM64_REG_X27, 0, 8);
+    dr_arm64!(ARM64_REG_W27, arm64::ARM64_REG_X27, 0, 4);
 
-    dr!(ARM64_REG_X28, arm64::ARM64_REG_X28, 0, 8);
-    dr!(ARM64_REG_W28, arm64::ARM64_REG_X28, 0, 4);
+    dr_arm64!(ARM64_REG_X28, arm64::ARM64_REG_X28, 0, 8);
+    dr_arm64!(ARM64_REG_W28, arm64::ARM64_REG_X28, 0, 4);
 
-    dr!(ARM64_REG_X29, arm64::ARM64_REG_X29, 0, 8);
-    dr!(ARM64_REG_FP, arm64::ARM64_REG_X29, 0, 8);
-    dr!(ARM64_REG_W29, arm64::ARM64_REG_X29, 0, 4);
+    dr_arm64!(ARM64_REG_X29, arm64::ARM64_REG_X29, 0, 8);
+    dr_arm64!(ARM64_REG_FP, arm64::ARM64_REG_X29, 0, 8);
+    dr_arm64!(ARM64_REG_W29, arm64::ARM64_REG_X29, 0, 4);
 
-    dr!(ARM64_REG_X30, arm64::ARM64_REG_X30, 0, 8);
-    dr!(ARM64_REG_LR, arm64::ARM64_REG_X30, 0, 8);
-    dr!(ARM64_REG_W30, arm64::ARM64_REG_X30, 0, 4);
+    dr_arm64!(ARM64_REG_X30, arm64::ARM64_REG_X30, 0, 8);
+    dr_arm64!(ARM64_REG_LR, arm64::ARM64_REG_X30, 0, 8);
+    dr_arm64!(ARM64_REG_W30, arm64::ARM64_REG_X30, 0, 4);
 
-    dr!(ARM64_REG_XZR, arm64::ARM64_REG_XZR, 0, 8);
-    dr!(ARM64_REG_WZR, arm64::ARM64_REG_XZR, 0, 4);
+    dr_arm64!(ARM64_REG_XZR, arm64::ARM64_REG_XZR, 0, 8);
+    dr_arm64!(ARM64_REG_WZR, arm64::ARM64_REG_XZR, 0, 4);
 
-    dr!(ARM64_REG_SP, arm64::ARM64_REG_SP, 0, 8);
-    dr!(ARM64_REG_WSP, arm64::ARM64_REG_SP, 0, 4);
+    dr_arm64!(ARM64_REG_SP, arm64::ARM64_REG_SP, 0, 8);
+    dr_arm64!(ARM64_REG_WSP, arm64::ARM64_REG_SP, 0, 4);
 
-    dr!(ARM64_REG_NZCV, arm64::ARM64_REG_NZCV, 0, 8);
+    dr_arm64!(ARM64_REG_NZCV, arm64::ARM64_REG_NZCV, 0, 8);
 
     /// Local identifier that is intentionally unique to this register
     pub fn local_id(&self) -> u64 {
-        self.combined_id & !(0xff << 56)
+        self.combined_id & LOCAL_ID_MASK
     }
 
     /// The underlying architecture of this register
     pub fn arch_id(&self) -> ArchitectureIdentifier {
-        match self.combined_id & (0xff << 56) {
+        match (self.combined_id & !LOCAL_ID_MASK) >> 56 {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
             2 => ArchitectureIdentifier::Virtual,
