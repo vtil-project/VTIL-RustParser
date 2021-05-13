@@ -12,10 +12,7 @@
 // OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
-use vtil_parser::{
-    ArchitectureIdentifier, ImmediateDesc, InstructionBuilder, RegisterDesc, RegisterFlags, Result,
-    Routine, Vip,
-};
+use vtil_parser::{ArchitectureIdentifier, InstructionBuilder, RegisterDesc, Result, Routine, Vip};
 
 fn main() -> Result<()> {
     let mut routine = Routine::new(ArchitectureIdentifier::Virtual);

@@ -13,53 +13,8 @@
 //
 
 use indexmap::map::Values;
-use std::{env, fmt::Write};
-use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine, Vip};
-
-pub fn dump_instr(instr: &Instruction) -> Result<String> {
-    let mut buffer = String::new();
-
-    if instr.sp_index != 0 {
-        write!(buffer, "[{:04}] ", instr.sp_index)?;
-    } else {
-        write!(buffer, "       ")?;
-    }
-
-    if instr.sp_reset {
-        write!(
-            buffer,
-            ">{}{:>#4x} ",
-            if instr.sp_offset >= 0 { '+' } else { '-' },
-            instr.sp_offset.abs()
-        )?;
-    } else {
-        write!(
-            buffer,
-            " {}{:>#4x} ",
-            if instr.sp_offset >= 0 { '+' } else { '-' },
-            instr.sp_offset.abs()
-        )?;
-    }
-
-    write!(buffer, "{:<8} ", instr.op.name())?;
-
-    for op in instr.op.operands() {
-        match op {
-            Operand::RegisterDesc(r) => {
-                write!(buffer, "{:<12}", format!("{}", r))?;
-            }
-            Operand::ImmediateDesc(i) => {
-                if i.i64() < 0 {
-                    write!(buffer, "-{:<#12x}", -i.i64())?;
-                } else {
-                    write!(buffer, "{:<#12x}", i.i64())?;
-                }
-            }
-        }
-    }
-
-    Ok(buffer)
-}
+use std::{env, str};
+use vtil_parser::{dump::dump_instr, BasicBlock, Result, Routine, Vip};
 
 fn escape(data: String) -> String {
     data.replace("&", "&amp;")
@@ -87,10 +42,11 @@ fn dump_routine(basic_blocks: Values<Vip, BasicBlock>) {
         );
 
         for instr in &basic_block.instructions {
-            let pretty = dump_instr(instr).unwrap();
+            let mut buffer = Vec::<u8>::new();
+            dump_instr(&mut buffer, instr).unwrap();
             println!(
                 r#"            <tr><td align="left">{}</td></tr>"#,
-                escape(pretty)
+                escape(str::from_utf8(&buffer).unwrap().to_string())
             );
         }
 

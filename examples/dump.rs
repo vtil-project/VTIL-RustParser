@@ -12,74 +12,12 @@
 // OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
-use indexmap::map::Values;
-use std::{env, fmt::Write};
-use vtil_parser::{BasicBlock, Instruction, Operand, Result, Routine, Vip};
-
-pub fn dump_instr(instr: &Instruction) -> Result<String> {
-    let mut buffer = String::new();
-
-    if instr.sp_index != 0 {
-        write!(buffer, "[{:04}] ", instr.sp_index)?;
-    } else {
-        write!(buffer, "       ")?;
-    }
-
-    if instr.sp_reset {
-        write!(
-            buffer,
-            ">{}{:>#4x} ",
-            if instr.sp_offset >= 0 { '+' } else { '-' },
-            instr.sp_offset.abs()
-        )?;
-    } else {
-        write!(
-            buffer,
-            " {}{:>#4x} ",
-            if instr.sp_offset >= 0 { '+' } else { '-' },
-            instr.sp_offset.abs()
-        )?;
-    }
-
-    write!(buffer, "{:<8} ", instr.op.name())?;
-
-    for op in instr.op.operands() {
-        match op {
-            Operand::RegisterDesc(r) => {
-                write!(buffer, "{:<12}", format!("{}", r))?;
-            }
-            Operand::ImmediateDesc(i) => {
-                if i.i64() < 0 {
-                    write!(buffer, "-{:<#12x}", -i.i64())?;
-                } else {
-                    write!(buffer, "{:<#12x}", i.i64())?;
-                }
-            }
-        }
-    }
-
-    Ok(buffer)
-}
-
-fn dump_routine(basic_blocks: Values<Vip, BasicBlock>) {
-    for basic_block in basic_blocks {
-        println!("Entry point VIP:       {:#x}", basic_block.vip.0);
-        print!("Stack pointer:         ");
-        if basic_block.sp_offset < 0 {
-            println!("-{:#x}", -basic_block.sp_offset)
-        } else {
-            println!("{:#x}", basic_block.sp_offset)
-        }
-
-        for instr in &basic_block.instructions {
-            println!("{}", dump_instr(instr).unwrap());
-        }
-    }
-}
+use std::env;
+use vtil_parser::{dump::dump_routine, Result, Routine};
 
 fn main() -> Result<()> {
     let mut argv = env::args();
     let routine = Routine::from_path(argv.nth(1).unwrap())?;
-    dump_routine(routine.explored_blocks.values());
+    dump_routine(&mut std::io::stdout(), &routine).unwrap();
     Ok(())
 }

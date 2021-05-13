@@ -102,6 +102,9 @@ pub use serialize::*;
 mod instr_builder;
 pub use instr_builder::*;
 
+/// Helpers for dumping VTIL structures
+pub mod dump;
+
 #[doc(hidden)]
 pub type Result<T> = std::result::Result<T, error::Error>;
 
