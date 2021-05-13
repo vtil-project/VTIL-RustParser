@@ -118,7 +118,7 @@ pub struct RegisterDesc {
 }
 
 // Mask for local ID in `combined_id`, invert for architecture ID
-const LOCAL_ID_MASK: u64 = 0x00ffffffffffffff;
+pub(crate) const LOCAL_ID_MASK: u64 = 0x00ffffffffffffff;
 
 // Define a physical register, including bit count and bit offset
 macro_rules! dr {

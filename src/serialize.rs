@@ -41,7 +41,7 @@ use std::mem::size_of;
 use super::{
     ArchitectureIdentifier, BasicBlock, Error, Header, Immediate, ImmediateDesc, Instruction, Op,
     Operand, RegisterDesc, RegisterFlags, Result, Routine, RoutineConvention, SubroutineConvention,
-    Vip,
+    Vip, LOCAL_ID_MASK,
 };
 
 const VTIL_MAGIC_1: u32 = 0x4c495456;
@@ -183,7 +183,7 @@ impl ctx::TryFromCtx<'_, Endian> for RegisterDesc {
         };
 
         let combined_id = source.gread_with::<u64>(offset, endian)?;
-        if combined_id & (0xff << 56) > 2 {
+        if ((combined_id & !LOCAL_ID_MASK) >> 56) > 2 {
             return Err(Error::Malformed(
                 "Register flags are invalid: >2".to_string(),
             ));
