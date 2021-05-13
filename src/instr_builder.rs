@@ -59,6 +59,11 @@ impl<'a> InstructionBuilder<'a> {
         InstructionBuilder { basic_block }
     }
 
+    /// The current [`BasicBlock`]
+    pub fn basic_block(&mut self) -> &mut BasicBlock {
+        &mut self.basic_block
+    }
+
     /// Queues a stack shift
     pub fn shift_sp(&mut self, offset: i64) {
         self.basic_block.sp_offset += offset;

@@ -140,13 +140,27 @@ macro_rules! dr {
 
 macro_rules! dr_amd64 {
     ($name:ident, $id:expr, $offset:expr, $count:expr) => {
-        dr!(ArchitectureIdentifier::Amd64, $name, $id, $offset, $count, stringify!($name));
+        dr!(
+            ArchitectureIdentifier::Amd64,
+            $name,
+            $id,
+            $offset,
+            $count,
+            stringify!($name)
+        );
     };
 }
 
 macro_rules! dr_arm64 {
     ($name:ident, $id:expr, $offset:expr, $count:expr) => {
-        dr!(ArchitectureIdentifier::Arm64, $name, $id, $offset, $count, stringify!($name));
+        dr!(
+            ArchitectureIdentifier::Arm64,
+            $name,
+            $id,
+            $offset,
+            $count,
+            stringify!($name)
+        );
     };
 }
 
@@ -610,7 +624,6 @@ impl From<u8> for ImmediateDesc {
 impl ImmediateDesc {
     /// Immediate from a `u64`
     pub fn new<T: Into<u64>>(value: T, bit_count: u32) -> ImmediateDesc {
-        assert!(bit_count % 8 == 0);
         ImmediateDesc {
             value: Immediate { u64: value.into() },
             bit_count,
@@ -619,7 +632,6 @@ impl ImmediateDesc {
 
     /// Immediate from an `i64`
     pub fn new_signed<T: Into<i64>>(value: T, bit_count: u32) -> ImmediateDesc {
-        assert!(bit_count % 8 == 0);
         ImmediateDesc {
             value: Immediate { i64: value.into() },
             bit_count,
