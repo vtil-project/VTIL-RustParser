@@ -404,8 +404,7 @@ impl RegisterDesc {
         match (self.combined_id & !LOCAL_ID_MASK) >> 56 {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
-            2 => ArchitectureIdentifier::Virtual,
-            _ => unreachable!(),
+            2 | _ => ArchitectureIdentifier::Virtual,
         }
     }
 
@@ -1078,6 +1077,14 @@ impl Op {
                 | Op::Vpinwm(_, _, _)
         )
     }
+
+    /// Returns if the instruction is a branching operation
+    pub fn is_branching(&self) -> bool {
+        matches!(
+            self,
+            Op::Js(_, _, _) | Op::Jmp(_) | Op::Vexit(_) | Op::Vxcall(_)
+        )
+    }
 }
 
 /// Basic block containing a linear sequence of VTIL instructions
@@ -1111,6 +1118,38 @@ impl BasicBlock {
         };
         self.last_temporary_index += 1;
         reg
+    }
+
+    /// Returns if the block is complete: terminated by a branching instruction
+    pub fn is_complete(&self) -> bool {
+        let instructions = &self.instructions;
+        !instructions.is_empty() && instructions[instructions.len() - 1].op.is_branching()
+    }
+
+    /// Makes a new [`BasicBlock`] connected to the current block, at the specified
+    /// instruction pointer
+    ///
+    /// # Panics
+    ///
+    /// Panics if the block is incomplete, or `entry` is an invalid instruction
+    /// pointer
+    pub fn fork(&mut self, entry: Vip) -> BasicBlock {
+        assert!(self.is_complete());
+        assert!(entry != Vip::invalid());
+
+        let basic_block = BasicBlock {
+            vip: entry,
+            sp_offset: 0,
+            sp_index: 0,
+            last_temporary_index: 0,
+            instructions: vec![],
+            prev_vip: vec![self.vip],
+            next_vip: vec![],
+        };
+
+        self.next_vip.push(entry);
+
+        basic_block
     }
 }
 
