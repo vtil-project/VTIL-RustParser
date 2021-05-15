@@ -404,7 +404,7 @@ impl RegisterDesc {
         match (self.combined_id & !LOCAL_ID_MASK) >> 56 {
             0 => ArchitectureIdentifier::Amd64,
             1 => ArchitectureIdentifier::Arm64,
-            2 | _ => ArchitectureIdentifier::Virtual,
+            _ => ArchitectureIdentifier::Virtual,
         }
     }
 
