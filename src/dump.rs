@@ -1,12 +1,12 @@
-use crate::{Instruction, Operand, Result, Routine};
+use crate::{Instruction, Operand, Result, Routine, Vip};
 use std::io;
 
 /// Dump a VTIL [`Instruction`] to a [`String`]. This format is **not** stable
 pub fn dump_instr(buffer: &mut dyn io::Write, instr: &Instruction) -> Result<()> {
-    if instr.sp_index != 0 {
-        write!(buffer, "[{:04}] ", instr.sp_index)?;
+    if instr.vip != Vip::invalid() {
+        write!(buffer, "[{:08x}] ", instr.vip.0)?;
     } else {
-        write!(buffer, "       ")?;
+        write!(buffer, "[ PSEUDO ] ")?;
     }
 
     if instr.sp_reset {
